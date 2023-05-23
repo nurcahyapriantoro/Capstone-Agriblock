@@ -27,7 +27,7 @@ class Blockchain implements BlockchainInterface {
       )
       if (
         hash !== validatedHash ||
-        Math.abs(lastDifficulty - difficulty) //prevent difficulty jump
+        Math.abs(lastDifficulty - difficulty) > 1 //prevent difficulty jump
       )
         return false
     }

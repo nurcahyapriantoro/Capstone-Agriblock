@@ -1,5 +1,6 @@
 import { GENESIS_DATA, MINE_RATE } from "./config"
 import cryptoHash from "./crypto-hash"
+import { hexToBinary } from "./utils/hexToBinary"
 
 import type { BlockInterface } from "./types"
 
@@ -48,7 +49,9 @@ class Block implements BlockInterface {
       console.log(
         `difficulty ${difficulty}, timestamp ${timestamp}, nonce ${nonce}, hash ${hash}`
       )
-    } while (hash.substring(0, difficulty) !== "0".repeat(difficulty))
+    } while (
+      hexToBinary(hash).substring(0, difficulty) !== "0".repeat(difficulty)
+    )
 
     return new this({
       timestamp,

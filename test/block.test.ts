@@ -1,5 +1,6 @@
 import Block from "../src/block"
 import cryptoHash from "../src/crypto-hash"
+import { hexToBinary } from "../src/utils/hexToBinary"
 import { GENESIS_DATA, MINE_RATE } from "../src/config"
 
 describe("Block", () => {
@@ -73,9 +74,9 @@ describe("Block", () => {
     })
 
     it("set hash matches the difficulty criteria", () => {
-      expect(minedBlock.hash.substring(0, minedBlock.difficulty)).toEqual(
-        "0".repeat(minedBlock.difficulty)
-      )
+      expect(
+        hexToBinary(minedBlock.hash).substring(0, minedBlock.difficulty)
+      ).toEqual("0".repeat(minedBlock.difficulty))
     })
 
     it("adjusts the difficulty", () => {
