@@ -2,7 +2,6 @@ import express from "express"
 import Blockchain from "./src/blockchain"
 import dotenv from "dotenv"
 import PubSub from "./pubsub"
-import axios from "axios"
 // import cors from "cors"
 // import apiRoutes from "./src/routes"
 // import catch404Error from "./src/middleware/catch404"
@@ -43,12 +42,10 @@ app.use(express.urlencoded({ extended: true }))
 // app.use(catch404Error)
 // app.use(handleError)
 
-const syncChains = () => {
-  axios.get(`${ROOT_NODE_ADDRESS}/api/blocks `).then((response) => {
-    console.log(response.data)
-
-    blockchain.replaceChain(response.data)
-  })
+const syncChains = async () => {
+  const response = await fetch(`${ROOT_NODE_ADDRESS}/api/blocks`)
+  const jsonData = await response.json()
+  blockchain.replaceChain(jsonData)
 }
 
 const PORT =
