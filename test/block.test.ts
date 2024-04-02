@@ -1,6 +1,6 @@
 import Block from "../src/block"
-import cryptoHash from "../src/crypto-hash"
-import { hexToBinary } from "../src/utils/hexToBinary"
+import { cryptoHashV2 } from "../src/crypto-hash"
+import { hexToBinary } from "../utils/hexToBinary"
 import { GENESIS_DATA, MINE_RATE } from "../src/config"
 
 describe("Block", () => {
@@ -17,6 +17,7 @@ describe("Block", () => {
     data,
     difficulty,
     nonce,
+    number: 1,
   })
 
   it("has timestamp, lastHash, hash, and data property", () => {
@@ -62,8 +63,9 @@ describe("Block", () => {
     })
 
     it("create SHA-256 hash based on input", () => {
+      console.log(minedBlock.hash)
       expect(minedBlock.hash).toEqual(
-        cryptoHash(
+        cryptoHashV2(
           minedBlock.timestamp,
           lastBlock.hash,
           data,

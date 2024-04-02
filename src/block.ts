@@ -1,10 +1,18 @@
 import { GENESIS_DATA, MINE_RATE } from "./config"
-import cryptoHash from "./crypto-hash"
-import { hexToBinary } from "./utils/hexToBinary"
+import { cryptoHashV2 } from "./crypto-hash"
+import { hexToBinary } from "../utils/hexToBinary"
 
-import type { BlockInterface } from "./types"
+import type { BlockInterface, TransactionInterface } from "./types"
 
-class Block implements BlockInterface {
+class Block {
+  difficulty: number
+  nonce: number
+  lastHash: string
+  hash: string
+  timestamp: number
+  number: number
+  data: Array<any>
+
   constructor({
     timestamp,
     lastHash,
@@ -12,6 +20,7 @@ class Block implements BlockInterface {
     data,
     difficulty,
     nonce,
+    number,
   }: BlockInterface) {
     this.timestamp = timestamp
     this.lastHash = lastHash
@@ -19,19 +28,20 @@ class Block implements BlockInterface {
     this.data = data
     this.difficulty = difficulty
     this.nonce = nonce
+    this.number = number
   }
-  difficulty: number
-  nonce: number
-  lastHash: string
-  hash: string
-  timestamp: number
-  data: any
 
   static genesis() {
     return new this(GENESIS_DATA)
   }
 
-  static mineBlock({ lastBlock, data }: { lastBlock: Block; data: any }) {
+  static mineBlock({
+    lastBlock,
+    data,
+  }: {
+    lastBlock: Block
+    data: Array<any>
+  }) {
     const lastHash = lastBlock.hash
     let hash: string, timestamp: number
     let { difficulty } = lastBlock
@@ -45,7 +55,7 @@ class Block implements BlockInterface {
         timestamp,
       })
 
-      hash = cryptoHash(timestamp, lastHash, data, nonce, difficulty)
+      hash = cryptoHashV2(timestamp, lastHash, data, nonce, difficulty)
       console.log(
         `difficulty ${difficulty}, timestamp ${timestamp}, nonce ${nonce}, hash ${hash}`
       )
@@ -60,6 +70,7 @@ class Block implements BlockInterface {
       hash,
       difficulty,
       nonce,
+      number: lastBlock.number + 1,
     })
   }
 
