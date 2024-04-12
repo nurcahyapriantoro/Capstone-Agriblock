@@ -6,7 +6,7 @@ const produceMessage = <T>(type: MessageTypeEnum, data: T) => {
   return JSON.stringify({ type, data })
 }
 
-const sendMessage = (message: RawData, nodes: Array<WebSocket>) => {
+const sendMessage = (message: RawData | string, nodes: Array<WebSocket>) => {
   // Broadcast message to all nodes
   nodes.forEach((node) => node.send(message))
 }

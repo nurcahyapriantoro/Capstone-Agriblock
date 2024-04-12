@@ -3,18 +3,18 @@ import { Level } from "level"
 import { fork } from "child_process"
 
 import Block from "../block"
+import Transaction from "../transaction"
 import SyncQueue from "../core/queue"
+import changeState from "../core/state"
 
 import connect from "../../utils/connect"
 import { Config } from "../../config"
 import { getKeyPair } from "../../utils/keypair"
 import { MessageTypeEnum } from "../enum"
-import type { ChainInfo, ConnectedNode, MessageInterface } from "../types"
-import Transaction from "../transaction"
-import { cryptoHashV2 } from "../crypto-hash"
 import { produceMessage, sendMessage } from "../../utils/message"
-import { GENESIS_DATA } from "../config"
+import { GENESIS_DATA, MINT_PUBLIC_ADDRESS } from "../config"
 import { verifyBlock } from "../consensus/consensus"
+import type { ChainInfo, ConnectedNode, MessageInterface } from "../types"
 
 const connectedNodes = new Map<string, ConnectedNode>()
 
@@ -24,6 +24,7 @@ let mined = false // This will be used to inform the node that another node has 
 const stateDB = new Level(__dirname + "/../../log/stateStore", {
   valueEncoding: "json",
 })
+
 const blockDB = new Level(__dirname + "/../../log/blockStore", {
   valueEncoding: "json",
 })
@@ -46,14 +47,17 @@ async function startServer(params: Config) {
     APP_PORT,
     MAX_PEERS,
     MY_ADDRESS,
+    PEERS,
     ENABLE_CHAIN_REQUEST,
     ENABLE_MINING,
+    ENABLE_RPC,
   } = params
 
   const keyPair = getKeyPair(PRIVATE_KEY)
   const publicKey = keyPair.getPublic("hex")
 
   let chainRequestEnabled = ENABLE_CHAIN_REQUEST
+  let currentSyncBlock = 1
 
   const server = new WebSocket.Server({
     port: APP_PORT,
@@ -105,8 +109,7 @@ async function startServer(params: Config) {
           }
 
           const getSenderAddress = async () => {
-            const txSenderAddress = cryptoHashV2(transaction.from)
-            return await stateDB.get(txSenderAddress)
+            return await stateDB.get(transaction.from)
           }
           const isTransactionExist = () =>
             [...chainInfo.transactionPool]
@@ -177,7 +180,7 @@ async function startServer(params: Config) {
               if (
                 (chainInfo.latestSyncBlock === null &&
                   GENESIS_DATA.hash === block.hash) || // For genesis
-                (await verifyBlock(block, chainInfo)) // For all others
+                (await verifyBlock(block, chainInfo, stateDB)) // For all others
               ) {
                 const blockNumberStr = block.number.toString()
                 await blockDB.put(blockNumberStr, JSON.stringify(_message.data)) // Add block to chain
@@ -188,13 +191,15 @@ async function startServer(params: Config) {
                   const tx = block.data[txIndex]
 
                   await txhashDB.put(
-                    tx.signature,
+                    tx.signature as string,
                     block.number.toString() + " " + txIndex.toString()
                   )
                 }
 
                 if (!chainInfo.latestSyncBlock) {
                   chainInfo.latestSyncBlock = block // Update latest synced block.
+
+                  await changeState(block, stateDB) // Force transit state
                 }
 
                 chainInfo.latestBlock = block // Update latest block cache
@@ -227,6 +232,7 @@ async function startServer(params: Config) {
             })
           }
           break
+
         case MessageTypeEnum.PUBLISH_BLOCK:
           let newBlock: Block
 
@@ -249,7 +255,7 @@ async function startServer(params: Config) {
               (chainRequestEnabled && currentSyncBlock > 1))
             // Only proceed if syncing is disabled or enabled but already synced at least the genesis block
           ) {
-            if (await verifyBlock(newBlock, chainInfo)) {
+            if (await verifyBlock(newBlock, chainInfo, stateDB)) {
               console.log(
                 `\x1b[32mLOG\x1b[0m [${new Date().toISOString()}] New block received.`
               )
@@ -274,7 +280,7 @@ async function startServer(params: Config) {
                 const txHash = tx.signature
 
                 await txhashDB.put(
-                  txHash,
+                  txHash as string,
                   blockNumberStr + " " + txIndex.toString()
                 )
               }
@@ -312,7 +318,233 @@ async function startServer(params: Config) {
     })
   })
 
-  let currentSyncBlock = 1
+  if (!chainRequestEnabled) {
+    const blockchain = await blockDB.values().all()
+
+    if ((blockchain.length as number) === 0) {
+      /*
+        register the first account
+        // await stateDB.put()
+      */
+
+      // store genesis block
+      await blockDB.put(
+        chainInfo.latestBlock.number.toString(),
+        JSON.stringify(chainInfo.latestBlock)
+      )
+
+      // assign block number to the matching block hash
+      await bhashDB.put(
+        chainInfo.latestBlock.hash,
+        chainInfo.latestBlock.number.toString()
+      )
+
+      await changeState(chainInfo.latestBlock, stateDB)
+
+      console.log(
+        `\x1b[32mLOG\x1b[0m [${new Date().toISOString()}] Created Genesis Block with:\n` +
+          `    Block number: ${chainInfo.latestBlock.number.toString()}\n` +
+          `    Timestamp: ${chainInfo.latestBlock.timestamp.toString()}\n` +
+          `    Difficulty: ${chainInfo.latestBlock.difficulty.toString()}\n` +
+          `    Hash: ${chainInfo.latestBlock.hash.toString()}\n`
+      )
+    } else {
+      const lastStoredBlockKey = Math.max(
+        ...blockchain.map((key) => parseInt(key))
+      )
+      chainInfo.latestBlock = await blockDB
+        .get(lastStoredBlockKey.toString())
+        .then((data) => JSON.parse(data))
+    }
+  }
+
+  try {
+    PEERS.forEach((peer) =>
+      connect({
+        address: peer,
+        myAddress: MY_ADDRESS,
+        connectedNodes,
+      })
+    ) // Connect to peers
+  } catch (e) {}
+
+  // Sync chain
+  if (chainRequestEnabled) {
+    const blockNumbers = await blockDB.keys().all()
+
+    if ((blockNumbers.length as number) !== 0) {
+      currentSyncBlock = Math.max(...blockNumbers.map((key) => parseInt(key)))
+    }
+
+    if (currentSyncBlock === 1) {
+      /*
+        // Initial state
+
+        register the first account
+        // await stateDB.put()
+      */
+    }
+
+    setTimeout(async () => {
+      for (const node of [...connectedNodes.values()]) {
+        node.socket.send(
+          produceMessage(MessageTypeEnum.REQUEST_BLOCK, {
+            blockNumber: currentSyncBlock,
+            requestAddress: MY_ADDRESS,
+          })
+        )
+      }
+    }, 5000)
+  }
+
+  // mining scheduler
+  if (ENABLE_MINING) {
+    let length = chainInfo.latestBlock.number
+    let mining = true
+
+    setInterval(async () => {
+      if (mining || length !== chainInfo.latestBlock.number) {
+        mining = false
+        length = chainInfo.latestBlock.number
+
+        if (!ENABLE_CHAIN_REQUEST) await mine(publicKey)
+      }
+    }, 1000)
+  }
+
+  if (ENABLE_RPC) {
+  }
+}
+
+const mine = async (publicKey: string) => {
+  const startWorker = (lastBlock: Block, transactions: Array<Transaction>) => {
+    return new Promise<Block>((resolve, reject) => {
+      worker.addListener("message", (message: any) => resolve(message.result))
+
+      worker.send({
+        type: "MINE",
+        data: {
+          lastBlock,
+          transactions,
+        },
+      }) // Send a message to the worker thread, asking it to mine.
+    })
+  }
+
+  const rewardTransaction = new Transaction({
+    from: MINT_PUBLIC_ADDRESS,
+    to: publicKey,
+    data: [],
+  })
+
+  // Collect a list of transactions to mine
+  const states: Record<string, any> = {}
+  const transactionsToMine = [rewardTransaction]
+
+  const existedAddresses = await stateDB.keys().all()
+
+  for (const tx of chainInfo.transactionPool) {
+    const txSenderAddress = tx.from
+
+    // Normal coin transfers
+    if (!states[txSenderAddress]) {
+      const senderState = await stateDB
+        .get(txSenderAddress)
+        .then((data) => JSON.parse(data))
+
+      states[txSenderAddress] = senderState
+    } else {
+      // update sender address data
+    }
+
+    if (!existedAddresses.includes(tx.to) && !states[tx.to]) {
+      states[tx.to] = {
+        name: "receiver",
+      }
+    }
+
+    if (existedAddresses.includes(tx.to) && !states[tx.to]) {
+      states[tx.to] = await stateDB.get(tx.to).then((data) => JSON.parse(data))
+    }
+
+    // update recipient address data
+    transactionsToMine.push(tx)
+  }
+
+  // Mine the block.
+  startWorker(chainInfo.latestBlock, transactionsToMine)
+    .then(async (result) => {
+      // If the block is not mined before, we will add it to our chain and broadcast this new block.
+      if (!mined) {
+        await blockDB.put(result.number.toString(), JSON.stringify(result)) // Add block to chain
+        await bhashDB.put(result.hash, result.number.toString()) // Assign block number to the matching block hash
+
+        // Assign transaction index and block number to transaction hash
+        for (let txIndex = 0; txIndex < result.data.length; txIndex++) {
+          const tx = result.data[txIndex]
+          const txHash = tx.signature as string
+
+          await txhashDB.put(
+            txHash,
+            result.number.toString() + " " + txIndex.toString()
+          )
+        }
+
+        chainInfo.latestBlock = result // Update latest block cache
+
+        // Reward
+        const rewardTransaction = result.data[0]
+        if (!existedAddresses.includes(rewardTransaction.to)) {
+          states[rewardTransaction.to] = {
+            name: "miner",
+          }
+        }
+
+        if (existedAddresses.includes(rewardTransaction.to)) {
+          states[rewardTransaction.to] = await stateDB
+            .get(rewardTransaction.to)
+            .then((data) => JSON.parse(data))
+        }
+
+        for (const account of Object.keys(states))
+          await stateDB.put(account, JSON.stringify(states[account]))
+
+        // Update the new transaction pool (remove all the transactions that are no longer valid).
+        chainInfo.transactionPool = chainInfo.transactionPool.filter(
+          (transaction) =>
+            !result.data.find(
+              (tx) =>
+                tx.from === transaction.from &&
+                tx.to === transaction.to &&
+                tx.signature === transaction.signature
+            )
+        )
+
+        sendMessage(
+          produceMessage(MessageTypeEnum.PUBLISH_BLOCK, result),
+          [...connectedNodes.values()].map((node) => node.socket)
+        ) // Broadcast the new block
+
+        console.log(
+          `\x1b[32mLOG\x1b[0m [${new Date().toISOString()}] Block #${
+            chainInfo.latestBlock.number
+          } mined and synced, state transited.`
+        )
+      } else {
+        mined = false
+      }
+
+      // Re-create the worker thread
+      worker.kill()
+
+      worker = fork(`${__dirname}/../miner/worker.js`)
+    })
+    .catch((err) =>
+      console.log(
+        `\x1b[31mERROR\x1b[0m [${new Date().toISOString()}] Error at mining child process`,
+        err
+      )
+    )
 }
 
 export { startServer }

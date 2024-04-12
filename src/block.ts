@@ -1,8 +1,11 @@
+import Transaction from "./transaction"
+
 import { GENESIS_DATA, MINE_RATE } from "./config"
 import { cryptoHashV2 } from "./crypto-hash"
 import { hexToBinary } from "../utils/hexToBinary"
 
-import type { BlockInterface, TransactionInterface } from "./types"
+import type { BlockInterface } from "./types"
+import type { Level } from "level"
 
 class Block {
   difficulty: number
@@ -11,7 +14,7 @@ class Block {
   hash: string
   timestamp: number
   number: number
-  data: Array<any>
+  data: Array<Transaction>
 
   constructor({
     timestamp,
@@ -88,6 +91,103 @@ class Block {
     return timestamp - originalBlock.timestamp > MINE_RATE
       ? difficulty - 1
       : difficulty + 1
+  }
+
+  static async verifyTxAndTransit({
+    block,
+    stateDB,
+  }: {
+    block: Block
+    stateDB: Level<string, string>
+  }) {
+    const mappedTransactions = block.data.map(
+      (tx) =>
+        new Transaction({
+          data: tx.data,
+          from: tx.from,
+          to: tx.to,
+          signature: tx.signature as string,
+        })
+    )
+
+    // Basic verification
+    if (!mappedTransactions.every((transaction) => transaction.isValid()))
+      return false
+
+    // Get all existing addresses
+    const addressesInBlock = block.data.map((tx) => tx.from)
+    const existedAddresses = await stateDB.keys().all()
+
+    // If senders' address doesn't exist, return false
+    if (
+      !addressesInBlock.every((address) => existedAddresses.includes(address))
+    )
+      return false
+
+    // Start state replay to check if transactions are legit
+    let states: Record<string, any> = {}
+
+    for (const tx of block.data) {
+      const txSenderAddress = tx.from
+
+      if (!states[txSenderAddress]) {
+        const senderState = await stateDB
+          .get(txSenderAddress)
+          .then((data) => JSON.parse(data))
+
+        states[txSenderAddress] = senderState
+      } else {
+        // update sender address data
+      }
+
+      if (!existedAddresses.includes(tx.to) && !states[tx.to]) {
+        states[tx.to] = {
+          name: "receiver",
+        }
+      }
+
+      if (existedAddresses.includes(tx.to) && !states[tx.to]) {
+        states[tx.to] = await stateDB
+          .get(tx.to)
+          .then((data) => JSON.parse(data))
+      }
+    }
+
+    // Reward
+    const rewardTransaction = block.data[0]
+    if (
+      !existedAddresses.includes(rewardTransaction.to) &&
+      !states[rewardTransaction.to]
+    ) {
+      states[rewardTransaction.to] = {
+        name: "miner",
+      }
+    }
+
+    if (
+      existedAddresses.includes(rewardTransaction.to) &&
+      !states[rewardTransaction.to]
+    ) {
+      states[rewardTransaction.to] = await stateDB
+        .get(rewardTransaction.to)
+        .then((data) => JSON.parse(data))
+    }
+
+    for (const account of Object.keys(states)) {
+      await stateDB.put(account, JSON.stringify(states[account]))
+    }
+
+    block.data = block.data.map(
+      (tx) =>
+        new Transaction({
+          data: tx.data,
+          from: tx.from,
+          to: tx.to,
+          signature: tx.signature as string,
+        })
+    )
+
+    return true
   }
 }
 

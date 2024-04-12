@@ -1,10 +1,16 @@
 import Block from "../block"
+import Transaction from "../transaction"
+
 import { ChainInfo } from "../types"
 import { cryptoHashV2 } from "../crypto-hash"
 import { hexToBinary } from "../../utils/hexToBinary"
-import Transaction from "../transaction"
+import type { Level } from "level"
 
-async function verifyBlock(newBlock: Block, chainInfo: ChainInfo) {
+async function verifyBlock(
+  newBlock: Block,
+  chainInfo: ChainInfo,
+  stateDB: Level<string, string>
+) {
   const checkHash = () => {
     return (
       cryptoHashV2(
@@ -25,12 +31,21 @@ async function verifyBlock(newBlock: Block, chainInfo: ChainInfo) {
     hexToBinary(newBlock.hash).substring(0, newBlock.difficulty) ===
       "0".repeat(newBlock.difficulty) &&
     // Check transactions
-    newBlock.data.every((tx) => new Transaction(tx).isValid()) &&
+    newBlock.data.every((tx) =>
+      new Transaction({
+        data: tx.data,
+        from: tx.from,
+        to: tx.to,
+        signature: tx.signature as string,
+      }).isValid()
+    ) &&
     // Check timestamp
     newBlock.timestamp > chainInfo.latestBlock.timestamp &&
     newBlock.timestamp < Date.now() &&
     // Check block number
-    newBlock.number - 1 === chainInfo.latestBlock.number
+    newBlock.number - 1 === chainInfo.latestBlock.number &&
+    // Check transactions and transit state right after
+    (await Block.verifyTxAndTransit({ block: newBlock, stateDB }))
   )
 }
 
