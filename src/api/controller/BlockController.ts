@@ -1,18 +1,14 @@
 import type { Request, Response } from "express"
-import { blockDB } from "../../helper/level.db.client"
+import { bhashDB, blockDB } from "../../helper/level.db.client"
 
-const getBlocks = async (req: Request, res: Response) => {
-  const blocks = await blockDB.values().all()
-  res.json({
-    data: blocks,
-  })
-}
-
-const getBlockByHash = async (req: Request, res: Response) => {
+const getBlock = async (req: Request, res: Response) => {
   const { hash } = req.params
 
   try {
-    const block = await blockDB.get(hash)
+    const blockNumber = await bhashDB.get(String(hash))
+
+    const block = await blockDB.get(blockNumber)
+
     res.json({
       data: JSON.parse(block),
     })
@@ -22,4 +18,25 @@ const getBlockByHash = async (req: Request, res: Response) => {
     })
   }
 }
-export { getBlockByHash, getBlocks }
+
+const getBlockTransactions = async (req: Request, res: Response) => {
+  const { hash } = req.params
+
+  try {
+    const blockNumber = await bhashDB.get(String(hash))
+
+    const block = await blockDB
+      .get(blockNumber)
+      .then((block) => JSON.parse(block))
+
+    res.json({
+      data: block.data,
+    })
+  } catch (err) {
+    res.status(404).json({
+      message: "Block not found",
+    })
+  }
+}
+
+export { getBlock, getBlockTransactions }

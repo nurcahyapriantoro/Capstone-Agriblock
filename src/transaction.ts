@@ -1,6 +1,6 @@
 import { ec } from "elliptic"
 import { TransactionInterface } from "./types"
-import cryptoHash from "./crypto-hash"
+import { cryptoHashV2 } from "./crypto-hash"
 import { verifyPublicKey } from "../utils/keypair"
 import { MINT_PUBLIC_ADDRESS } from "./config"
 
@@ -23,7 +23,7 @@ class Transaction {
   sign(keyPair: ec.KeyPair) {
     if (keyPair.getPublic("hex") === this.from) {
       this.signature = keyPair
-        .sign(cryptoHash(this.from, this.to, this.data))
+        .sign(cryptoHashV2(this.from, this.to, this.data))
         .toDER("hex")
     }
   }
@@ -34,7 +34,7 @@ class Transaction {
       (this.signature &&
         verifyPublicKey(
           this.from,
-          cryptoHash(this.from, this.to, this.data),
+          cryptoHashV2(this.from, this.to, this.data),
           this.signature
         ))
     )
