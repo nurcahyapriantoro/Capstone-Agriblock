@@ -6,32 +6,23 @@ import Block from "../block"
 import Transaction from "../transaction"
 import SyncQueue from "../core/queue"
 import changeState from "../core/state"
+import api from "../api"
 
 import connect from "../../utils/connect"
 import { Config } from "../../config"
 import { getKeyPair } from "../../utils/keypair"
 import { MessageTypeEnum } from "../enum"
 import { produceMessage, sendMessage } from "../../utils/message"
-import { GENESIS_DATA, MINT_PUBLIC_ADDRESS } from "../config"
+import { GENESIS_DATA, MINT_KEY_PAIR, MINT_PUBLIC_ADDRESS } from "../config"
 import { verifyBlock } from "../consensus/consensus"
 import type { ChainInfo, ConnectedNode, MessageInterface } from "../types"
+import { addTransaction, clearDepreciatedTransaction } from "../core/txPool"
+import { stateDB, bhashDB, blockDB, txhashDB } from "../helper/level.db.client"
 
 const connectedNodes = new Map<string, ConnectedNode>()
 
-let worker = fork(`${__dirname}/../miner/worker.js`) // Worker thread (for PoW mining).
+let worker = fork(`${__dirname}/../miner/worker.ts`) // Worker thread (for PoW mining).
 let mined = false // This will be used to inform the node that another node has already mined before it.
-
-const stateDB = new Level(__dirname + "/../../log/stateStore", {
-  valueEncoding: "json",
-})
-
-const blockDB = new Level(__dirname + "/../../log/blockStore", {
-  valueEncoding: "json",
-})
-const bhashDB = new Level(__dirname + "/../../log/bhashStore", {
-  valueEncoding: "json",
-})
-const txhashDB = new Level(__dirname + "/../../log/txhashStore")
 
 const chainInfo: ChainInfo = {
   syncQueue: new SyncQueue(),
@@ -45,12 +36,13 @@ async function startServer(params: Config) {
   const {
     PRIVATE_KEY,
     APP_PORT,
+    API_PORT,
     MAX_PEERS,
     MY_ADDRESS,
     PEERS,
     ENABLE_CHAIN_REQUEST,
     ENABLE_MINING,
-    ENABLE_RPC,
+    ENABLE_API,
   } = params
 
   const keyPair = getKeyPair(PRIVATE_KEY)
@@ -288,14 +280,9 @@ async function startServer(params: Config) {
               chainInfo.latestBlock = newBlock // Update latest block cache
 
               // Update the new transaction pool (remove all the transactions that are no longer valid).
-              chainInfo.transactionPool = chainInfo.transactionPool.filter(
-                (transaction) =>
-                  !block.data.find(
-                    (tx) =>
-                      tx.from === transaction.from &&
-                      tx.to === transaction.to &&
-                      tx.signature === transaction.signature
-                  )
+              chainInfo.transactionPool = clearDepreciatedTransaction(
+                chainInfo.transactionPool,
+                newBlock.data
               )
 
               console.log(
@@ -319,7 +306,7 @@ async function startServer(params: Config) {
   })
 
   if (!chainRequestEnabled) {
-    const blockchain = await blockDB.values().all()
+    const blockchain = await blockDB.keys().all()
 
     if ((blockchain.length as number) === 0) {
       /*
@@ -352,9 +339,11 @@ async function startServer(params: Config) {
       const lastStoredBlockKey = Math.max(
         ...blockchain.map((key) => parseInt(key))
       )
+      console.log("352", lastStoredBlockKey)
       chainInfo.latestBlock = await blockDB
         .get(lastStoredBlockKey.toString())
         .then((data) => JSON.parse(data))
+      console.log("356")
     }
   }
 
@@ -407,12 +396,23 @@ async function startServer(params: Config) {
         mining = false
         length = chainInfo.latestBlock.number
 
-        if (!ENABLE_CHAIN_REQUEST) await mine(publicKey)
+        if (!ENABLE_CHAIN_REQUEST && chainInfo.transactionPool.length > 0)
+          await mine(publicKey)
       }
-    }, 1000)
+    }, 5000)
   }
 
-  if (ENABLE_RPC) {
+  if (ENABLE_API) {
+    api(
+      API_PORT,
+      keyPair,
+      {
+        publicKey,
+        chainInfo,
+        mining: ENABLE_MINING,
+      },
+      sendTransaction
+    )
   }
 }
 
@@ -436,6 +436,7 @@ const mine = async (publicKey: string) => {
     to: publicKey,
     data: [],
   })
+  rewardTransaction.sign(MINT_KEY_PAIR)
 
   // Collect a list of transactions to mine
   const states: Record<string, any> = {}
@@ -510,14 +511,9 @@ const mine = async (publicKey: string) => {
           await stateDB.put(account, JSON.stringify(states[account]))
 
         // Update the new transaction pool (remove all the transactions that are no longer valid).
-        chainInfo.transactionPool = chainInfo.transactionPool.filter(
-          (transaction) =>
-            !result.data.find(
-              (tx) =>
-                tx.from === transaction.from &&
-                tx.to === transaction.to &&
-                tx.signature === transaction.signature
-            )
+        chainInfo.transactionPool = clearDepreciatedTransaction(
+          chainInfo.transactionPool,
+          result.data
         )
 
         sendMessage(
@@ -537,7 +533,7 @@ const mine = async (publicKey: string) => {
       // Re-create the worker thread
       worker.kill()
 
-      worker = fork(`${__dirname}/../miner/worker.js`)
+      worker = fork(`${__dirname}/../miner/worker.ts`)
     })
     .catch((err) =>
       console.log(
@@ -545,6 +541,19 @@ const mine = async (publicKey: string) => {
         err
       )
     )
+}
+
+const sendTransaction = async (transaction: Transaction) => {
+  sendMessage(
+    produceMessage(MessageTypeEnum.CREATE_TRANSACTION, transaction),
+    [...connectedNodes.values()].map((node) => node.socket)
+  )
+
+  console.log(
+    `\x1b[32mLOG\x1b[0m [${new Date().toISOString()}] Sent one transaction.`
+  )
+
+  await addTransaction(transaction, chainInfo, stateDB)
 }
 
 export { startServer }

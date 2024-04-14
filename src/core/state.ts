@@ -1,7 +1,5 @@
-import { Level } from "level"
 import Block from "../block"
-
-type DBType = Level<string, string>
+import type { DBType } from "../types"
 
 const changeState = async (newBlock: Block, stateDB: DBType) => {
   // Manually change state
@@ -35,6 +33,10 @@ const changeState = async (newBlock: Block, stateDB: DBType) => {
   const rewardTransaction = newBlock.data[0]
   const totalTransaction = newBlock.data.length - 1
 
+  if (!rewardTransaction || rewardTransaction.from === rewardTransaction.to)
+    return
+
+  // If the address doesn't already exist in the chain state, we will create a new empty one.
   if (!existedAddresses.includes(rewardTransaction.to)) {
     await stateDB.put(
       rewardTransaction.to,

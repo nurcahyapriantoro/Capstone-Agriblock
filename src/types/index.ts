@@ -3,6 +3,7 @@ import Block from "../block"
 import { MessageTypeEnum } from "../enum"
 import SyncQueue from "../core/queue"
 import Transaction from "../transaction"
+import { Level } from "level"
 
 interface BlockInterface {
   timestamp: number
@@ -43,11 +44,20 @@ interface ChainInfo {
   checkedBlock: Record<string, boolean>
 }
 
+interface StateInterface {
+  name: string
+  publicKey: string
+}
+
+type DBType = Level<string, string>
+
 export type {
   BlockInterface,
   BlockchainInterface,
   TransactionInterface,
   MessageInterface,
+  StateInterface,
   ConnectedNode,
   ChainInfo,
+  DBType,
 }

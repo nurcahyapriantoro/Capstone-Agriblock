@@ -10,13 +10,13 @@ dotenv.config()
 export interface ENV {
   NODE_ENV: string | undefined
   APP_PORT: number | undefined
-  RPC_PORT: number | undefined
+  API_PORT: number | undefined
   PRIVATE_KEY: string | undefined
   MY_ADDRESS: string | undefined
   PEERS: Array<string>
   MAX_PEERS: number
   ENABLE_MINING: boolean
-  ENABLE_RPC: boolean
+  ENABLE_API: boolean
   ENABLE_CHAIN_REQUEST: boolean
 
   // other settings
@@ -34,13 +34,13 @@ export interface ENV {
 export interface Config {
   NODE_ENV: string
   APP_PORT: number
-  RPC_PORT: number
+  API_PORT: number
   PEERS: Array<string>
   MAX_PEERS: number
   PRIVATE_KEY: string
   MY_ADDRESS: string
   ENABLE_MINING: boolean
-  ENABLE_RPC: boolean
+  ENABLE_API: boolean
   ENABLE_CHAIN_REQUEST: boolean
 
   // other settings
@@ -59,14 +59,14 @@ export interface Config {
 const getConfig = (): ENV => {
   return {
     NODE_ENV: process.env.NODE_ENV ?? "development",
-    APP_PORT: process.env.APP_PORT ? Number(process.env.PORT) : 3000,
-    RPC_PORT: process.env.RPC_PORT ? Number(process.env.RPC_PORT) : 5000,
+    APP_PORT: process.env.APP_PORT ? Number(process.env.APP_PORT) : 3000,
+    API_PORT: process.env.API_PORT ? Number(process.env.API_PORT) : 5000,
     PRIVATE_KEY: process.env.PRIVATE_KEY,
     MY_ADDRESS: process.env.MY_ADDRESS,
     MAX_PEERS: process.env.MAX_PEERS ? Number(process.env.MAX_PEERS) : 10,
     PEERS: process.env.PEERS ? process.env.PEERS.split(",") : [],
     ENABLE_CHAIN_REQUEST: process.env.ENABLE_CHAIN_REQUEST === "true",
-    ENABLE_RPC: process.env.ENABLE_RPC === "true",
+    ENABLE_API: process.env.ENABLE_API === "true",
     ENABLE_MINING: process.env.ENABLE_MINING === "true",
 
     // other settings
