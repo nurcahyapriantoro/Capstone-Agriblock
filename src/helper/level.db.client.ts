@@ -12,23 +12,25 @@ declare global {
   var __txhashDb: Level | undefined
 }
 
+const path = process.env.APP_ENV ? `log/${process.env.APP_ENV}` : "log"
+
 if (!global.__stateDb)
-  global.__stateDb = new Level(__dirname + "/../../log/stateStore", {
+  global.__stateDb = new Level(__dirname + `/../../${path}/stateStore`, {
     valueEncoding: "json",
   })
 
 if (!global.__blockDb)
-  global.__blockDb = new Level(__dirname + "/../../log/blockStore", {
+  global.__blockDb = new Level(__dirname + `/../../${path}/blockStore`, {
     valueEncoding: "json",
   })
 
 if (!global.__bhashDb)
-  global.__bhashDb = new Level(__dirname + "/../../log/bhashStore", {
+  global.__bhashDb = new Level(__dirname + `/../../${path}/bhashStore`, {
     valueEncoding: "json",
   })
 
 if (!global.__txhashDb)
-  global.__txhashDb = new Level(__dirname + "/../../log/txhashStore")
+  global.__txhashDb = new Level(__dirname + `/../../${path}/txhashStore`)
 
 stateDB = global.__stateDb
 blockDB = global.__blockDb

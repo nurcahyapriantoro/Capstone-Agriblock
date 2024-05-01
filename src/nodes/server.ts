@@ -1,5 +1,4 @@
 import WebSocket from "ws"
-import { Level } from "level"
 import { fork } from "child_process"
 
 import Block from "../block"
@@ -9,15 +8,16 @@ import changeState from "../core/state"
 import api from "../api"
 
 import connect from "../../utils/connect"
-import { Config } from "../../config"
 import { getKeyPair } from "../../utils/keypair"
 import { MessageTypeEnum } from "../enum"
 import { produceMessage, sendMessage } from "../../utils/message"
 import { GENESIS_DATA, MINT_KEY_PAIR, MINT_PUBLIC_ADDRESS } from "../config"
 import { verifyBlock } from "../consensus/consensus"
-import type { ChainInfo, ConnectedNode, MessageInterface } from "../types"
 import { addTransaction, clearDepreciatedTransaction } from "../core/txPool"
 import { stateDB, bhashDB, blockDB, txhashDB } from "../helper/level.db.client"
+
+import type { ChainInfo, ConnectedNode, MessageInterface } from "../types"
+import type { Config } from "../config"
 
 const connectedNodes = new Map<string, ConnectedNode>()
 

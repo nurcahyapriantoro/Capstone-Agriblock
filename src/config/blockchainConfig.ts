@@ -1,4 +1,4 @@
-import { generateKeyPair } from "../utils/keypair"
+import { generateKeyPair } from "../../utils/keypair"
 
 const MINT_KEY_PAIR = generateKeyPair()
 const MINT_PUBLIC_ADDRESS = MINT_KEY_PAIR.getPublic("hex")

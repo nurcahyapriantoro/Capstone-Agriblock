@@ -1,6 +1,7 @@
 import Block from "../src/block"
 import BlockChain from "../src/blockchain"
 import { cryptoHashV2 } from "../src/crypto-hash"
+import Transaction from "../src/transaction"
 
 describe("Blockchain", () => {
   let blockchain: BlockChain
@@ -37,7 +38,13 @@ describe("Blockchain", () => {
 
     describe("when chain does not start with genesis block", () => {
       it("return false", () => {
-        blockchain.chain[0].data = ["fake-genesis"]
+        blockchain.chain[0].data = [
+          new Transaction({
+            from: "",
+            to: "",
+            data: ["fake-genesis"],
+          }),
+        ]
 
         expect(BlockChain.isValidChain(blockchain.chain)).toBe(false)
       })
@@ -46,7 +53,13 @@ describe("Blockchain", () => {
     describe("when chain start with genesis block and has multiple blocks", () => {
       describe("and chain contain invalid block", () => {
         it("data is changed", () => {
-          blockchain.chain[2].data = ["tampered"]
+          blockchain.chain[2].data = [
+            new Transaction({
+              from: "",
+              to: "",
+              data: ["tampered"],
+            }),
+          ]
 
           expect(BlockChain.isValidChain(blockchain.chain)).toBe(false)
         })
@@ -134,7 +147,13 @@ describe("Blockchain", () => {
 
       describe("and the chain is invalid", () => {
         it("does not replace the chain", () => {
-          newChain.chain[2].data = ["tampered"]
+          newChain.chain[2].data = [
+            new Transaction({
+              from: "",
+              to: "",
+              data: ["tampered"],
+            }),
+          ]
 
           blockchain.replaceChain(newChain.chain)
           expect(blockchain.chain).toEqual(originalChain)

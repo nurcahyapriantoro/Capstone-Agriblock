@@ -1,5 +1,6 @@
 import { startServer } from "./src/nodes/server"
-import sanitizedConfig from "./config"
+
+import { appConfig } from "./src/config"
 ;(async () => {
-  await startServer(sanitizedConfig)
+  await startServer(appConfig)
 })()
