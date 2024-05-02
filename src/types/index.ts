@@ -1,9 +1,11 @@
 import WebSocket from "ws"
 import Block from "../block"
-import { MessageTypeEnum } from "../enum"
 import SyncQueue from "../core/queue"
 import Transaction from "../transaction"
+import ProofOfStake from "../consensus/pos"
+
 import { Level } from "level"
+import { MessageTypeEnum } from "../enum"
 
 interface BlockInterface {
   timestamp: number
@@ -31,9 +33,8 @@ type MessageInterface<T> = {
   data: T
 }
 
-interface ConnectedNode {
+interface ConnectedNode extends Peer {
   socket: WebSocket
-  address: string
 }
 
 interface ChainInfo {
@@ -42,6 +43,7 @@ interface ChainInfo {
   latestSyncBlock: null | Block
   transactionPool: Array<Transaction>
   checkedBlock: Record<string, boolean>
+  consensus: ProofOfStake
 }
 
 interface StateInterface {
@@ -50,6 +52,11 @@ interface StateInterface {
 }
 
 type DBType = Level<string, string>
+
+interface Peer {
+  wsAddress: string
+  publicKey: string
+}
 
 export type {
   BlockInterface,
@@ -60,4 +67,5 @@ export type {
   ConnectedNode,
   ChainInfo,
   DBType,
+  Peer,
 }

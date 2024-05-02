@@ -62,4 +62,3 @@ class ProofOfStake {
 }
 
 export default ProofOfStake
- 

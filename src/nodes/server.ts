@@ -9,15 +9,22 @@ import api from "../api"
 
 import connect from "../../utils/connect"
 import { getKeyPair } from "../../utils/keypair"
-import { MessageTypeEnum } from "../enum"
+import { MessageTypeEnum, TransactionTypeEnum } from "../enum"
 import { produceMessage, sendMessage } from "../../utils/message"
-import { GENESIS_DATA, MINT_KEY_PAIR, MINT_PUBLIC_ADDRESS } from "../config"
+import {
+  FIRST_ACCOUNT,
+  GENESIS_DATA,
+  INITIAL_SUPPLY,
+  MINT_KEY_PAIR,
+  MINT_PUBLIC_ADDRESS,
+} from "../config"
 import { verifyBlock } from "../consensus/consensus"
 import { addTransaction, clearDepreciatedTransaction } from "../core/txPool"
 import { stateDB, bhashDB, blockDB, txhashDB } from "../helper/level.db.client"
 
-import type { ChainInfo, ConnectedNode, MessageInterface } from "../types"
+import type { ChainInfo, ConnectedNode, MessageInterface, Peer } from "../types"
 import type { Config } from "../config"
+import ProofOfStake from "../consensus/pos"
 
 const connectedNodes = new Map<string, ConnectedNode>()
 
@@ -26,6 +33,7 @@ let mined = false // This will be used to inform the node that another node has 
 
 const chainInfo: ChainInfo = {
   syncQueue: new SyncQueue(),
+  consensus: new ProofOfStake(),
   latestBlock: Block.genesis(),
   transactionPool: [],
   checkedBlock: {},
@@ -37,12 +45,12 @@ async function startServer(params: Config) {
     PRIVATE_KEY,
     APP_PORT,
     API_PORT,
-    MAX_PEERS,
     MY_ADDRESS,
     PEERS,
     ENABLE_CHAIN_REQUEST,
     ENABLE_MINING,
     ENABLE_API,
+    IS_ORDERER_NODE,
   } = params
 
   const keyPair = getKeyPair(PRIVATE_KEY)
@@ -73,17 +81,21 @@ async function startServer(params: Config) {
 
       switch (_message.type) {
         case MessageTypeEnum.HANDSHAKE:
-          const nodes: Array<string> = _message.data
-          const remainingQuota = MAX_PEERS - connectedNodes.size
+          const nodes: Array<Peer> = _message.data
 
-          const newNodes = nodes
-            .filter((node) => !connectedNodes.has(node) && node !== MY_ADDRESS)
-            .slice(0, remainingQuota)
+          const newNodes = nodes.filter(
+            (node) =>
+              !connectedNodes.has(node.publicKey) &&
+              node.publicKey !== publicKey
+          )
 
           newNodes.forEach((node) =>
             connect({
-              myAddress: MY_ADDRESS,
-              address: node,
+              currentNode: {
+                publicKey: publicKey,
+                wsAddress: MY_ADDRESS,
+              },
+              peer: node,
               connectedNodes,
             })
           )
@@ -186,6 +198,10 @@ async function startServer(params: Config) {
                     tx.signature as string,
                     block.number.toString() + " " + txIndex.toString()
                   )
+
+                  // update the node stake
+                  if (tx.data.type === TransactionTypeEnum.STAKE)
+                    chainInfo.consensus.update(tx.to, tx.data.amount)
                 }
 
                 if (!chainInfo.latestSyncBlock) {
@@ -212,7 +228,7 @@ async function startServer(params: Config) {
                   node.socket.send(
                     produceMessage(MessageTypeEnum.REQUEST_BLOCK, {
                       blockNumber: currentSyncBlock,
-                      requestAddress: MY_ADDRESS,
+                      requestAddress: publicKey,
                     })
                   )
                 }
@@ -275,6 +291,10 @@ async function startServer(params: Config) {
                   txHash as string,
                   blockNumberStr + " " + txIndex.toString()
                 )
+
+                // update the node stake
+                if (tx.data.type === TransactionTypeEnum.STAKE)
+                  chainInfo.consensus.update(tx.to, tx.data.amount)
               }
 
               chainInfo.latestBlock = newBlock // Update latest block cache
@@ -301,6 +321,10 @@ async function startServer(params: Config) {
           }
 
           break
+
+        case MessageTypeEnum.START_MINING:
+          if (chainInfo.transactionPool.length > 0) mine(publicKey)
+          break
       }
     })
   })
@@ -309,10 +333,19 @@ async function startServer(params: Config) {
     const blockchain = await blockDB.keys().all()
 
     if ((blockchain.length as number) === 0) {
-      /*
-        register the first account
-        // await stateDB.put()
-      */
+      // Add initial coin supply
+      await stateDB.put(
+        FIRST_ACCOUNT,
+        JSON.stringify({
+          name: "first-account",
+          balance: INITIAL_SUPPLY,
+        })
+      )
+
+      if (IS_ORDERER_NODE) {
+        // Set orderer as the initial stakers
+        chainInfo.consensus.update(publicKey, 1)
+      }
 
       // store genesis block
       await blockDB.put(
@@ -339,19 +372,21 @@ async function startServer(params: Config) {
       const lastStoredBlockKey = Math.max(
         ...blockchain.map((key) => parseInt(key))
       )
-      console.log("352", lastStoredBlockKey)
+
       chainInfo.latestBlock = await blockDB
         .get(lastStoredBlockKey.toString())
         .then((data) => JSON.parse(data))
-      console.log("356")
     }
   }
 
   try {
     PEERS.forEach((peer) =>
       connect({
-        address: peer,
-        myAddress: MY_ADDRESS,
+        peer,
+        currentNode: {
+          publicKey: publicKey,
+          wsAddress: MY_ADDRESS,
+        },
         connectedNodes,
       })
     ) // Connect to peers
@@ -366,12 +401,19 @@ async function startServer(params: Config) {
     }
 
     if (currentSyncBlock === 1) {
-      /*
-        // Initial state
+      // Add initial coin supply
+      await stateDB.put(
+        FIRST_ACCOUNT,
+        JSON.stringify({
+          name: "firstAccount",
+          balance: INITIAL_SUPPLY,
+        })
+      )
 
-        register the first account
-        // await stateDB.put()
-      */
+      if (IS_ORDERER_NODE) {
+        // Set orderer as the initial stakers
+        chainInfo.consensus.update(publicKey, 1)
+      }
     }
 
     setTimeout(async () => {
@@ -379,25 +421,31 @@ async function startServer(params: Config) {
         node.socket.send(
           produceMessage(MessageTypeEnum.REQUEST_BLOCK, {
             blockNumber: currentSyncBlock,
-            requestAddress: MY_ADDRESS,
+            requestAddress: publicKey,
           })
         )
       }
     }, 5000)
   }
 
-  // mining scheduler
-  if (ENABLE_MINING) {
-    let length = chainInfo.latestBlock.number
-    let mining = true
-
+  // orderer scheduler for mining
+  if (IS_ORDERER_NODE) {
     setInterval(async () => {
-      if (mining || length !== chainInfo.latestBlock.number) {
-        mining = false
-        length = chainInfo.latestBlock.number
+      if (chainInfo.transactionPool.length > 0) {
+        const forgerPublicKey = chainInfo.consensus.forger(
+          chainInfo.latestBlock.hash
+        )
 
-        if (!ENABLE_CHAIN_REQUEST && chainInfo.transactionPool.length > 0)
-          await mine(publicKey)
+        if (forgerPublicKey) {
+          const forgerNode = connectedNodes.get(forgerPublicKey)
+
+          if (forgerNode)
+            forgerNode.socket.send(
+              produceMessage(MessageTypeEnum.START_MINING, {
+                ordererAddress: MY_ADDRESS,
+              })
+            )
+        }
       }
     }, 5000)
   }
@@ -434,7 +482,9 @@ const mine = async (publicKey: string) => {
   const rewardTransaction = new Transaction({
     from: MINT_PUBLIC_ADDRESS,
     to: publicKey,
-    data: [],
+    data: {
+      type: TransactionTypeEnum.MINING_REWARD,
+    },
   })
   rewardTransaction.sign(MINT_KEY_PAIR)
 
@@ -447,25 +497,26 @@ const mine = async (publicKey: string) => {
   for (const tx of chainInfo.transactionPool) {
     const txSenderAddress = tx.from
 
-    // Normal coin transfers
-    if (!states[txSenderAddress]) {
-      const senderState = await stateDB
-        .get(txSenderAddress)
-        .then((data) => JSON.parse(data))
+    if (
+      tx.data.type === TransactionTypeEnum.STAKE ||
+      tx.data.type === TransactionTypeEnum.COIN_PURCHASE
+    ) {
+      if (!states[txSenderAddress]) {
+        const senderState = await stateDB
+          .get(txSenderAddress)
+          .then((data) => JSON.parse(data))
 
-      states[txSenderAddress] = senderState
-    } else {
-      // update sender address data
-    }
+        // skip stake if the sender doesn't have enough balance
+        if (senderState.balance < tx.data.amount) continue
 
-    if (!existedAddresses.includes(tx.to) && !states[tx.to]) {
-      states[tx.to] = {
-        name: "receiver",
+        states[txSenderAddress] = { ...senderState }
+        states[txSenderAddress].balance -= tx.data.amount
+      } else {
+        // skip stake if the sender doesn't have enough balance
+        if (states[txSenderAddress].balance < tx.data.amount) continue
+
+        states[txSenderAddress].balance -= tx.data.amount
       }
-    }
-
-    if (existedAddresses.includes(tx.to) && !states[tx.to]) {
-      states[tx.to] = await stateDB.get(tx.to).then((data) => JSON.parse(data))
     }
 
     // update recipient address data
@@ -489,23 +540,35 @@ const mine = async (publicKey: string) => {
             txHash,
             result.number.toString() + " " + txIndex.toString()
           )
+
+          // update the node stake
+          if (tx.data.type === TransactionTypeEnum.STAKE)
+            chainInfo.consensus.update(tx.to, tx.data.amount)
         }
 
         chainInfo.latestBlock = result // Update latest block cache
 
         // Reward
         const rewardTransaction = result.data[0]
-        if (!existedAddresses.includes(rewardTransaction.to)) {
+        const isMinerAddressExist = existedAddresses.includes(
+          rewardTransaction.to
+        )
+        const totalTransaction = result.data.length - 1
+
+        if (!isMinerAddressExist && !states[rewardTransaction.to]) {
           states[rewardTransaction.to] = {
             name: "miner",
+            balance: 0,
           }
         }
 
-        if (existedAddresses.includes(rewardTransaction.to)) {
+        if (isMinerAddressExist && !states[rewardTransaction.to]) {
           states[rewardTransaction.to] = await stateDB
             .get(rewardTransaction.to)
             .then((data) => JSON.parse(data))
         }
+
+        states[rewardTransaction.to].balance += totalTransaction
 
         for (const account of Object.keys(states))
           await stateDB.put(account, JSON.stringify(states[account]))

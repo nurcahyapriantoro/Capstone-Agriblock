@@ -1,4 +1,5 @@
 import dotenv from "dotenv"
+import type { Peer } from "../types"
 
 // Parsing the env file.
 dotenv.config()
@@ -13,11 +14,11 @@ export interface ENV {
   API_PORT: number | undefined
   PRIVATE_KEY: string | undefined
   MY_ADDRESS: string | undefined
-  PEERS: Array<string>
-  MAX_PEERS: number
+  PEERS: Array<Peer>
   ENABLE_MINING: boolean
   ENABLE_API: boolean
   ENABLE_CHAIN_REQUEST: boolean
+  IS_ORDERER_NODE: boolean
 
   // other settings
   PUBLISH_KEY: string | undefined
@@ -35,13 +36,13 @@ export interface Config {
   NODE_ENV: string
   APP_PORT: number
   API_PORT: number
-  PEERS: Array<string>
-  MAX_PEERS: number
+  PEERS: Array<Peer>
   PRIVATE_KEY: string
-  MY_ADDRESS: string
+  MY_ADDRESS: string // ws address
   ENABLE_MINING: boolean
   ENABLE_API: boolean
   ENABLE_CHAIN_REQUEST: boolean
+  IS_ORDERER_NODE: boolean
 
   // other settings
   PUBLISH_KEY: string
@@ -57,17 +58,26 @@ export interface Config {
 
 // Loading process.env as ENV interface
 const getConfig = (): ENV => {
+  const getPeers = (data: string): Array<Peer> => {
+    try {
+      const peers = JSON.parse(data)
+      return peers
+    } catch (err) {
+      return []
+    }
+  }
+
   return {
     NODE_ENV: process.env.NODE_ENV ?? "development",
     APP_PORT: process.env.APP_PORT ? Number(process.env.APP_PORT) : 3000,
     API_PORT: process.env.API_PORT ? Number(process.env.API_PORT) : 5000,
     PRIVATE_KEY: process.env.PRIVATE_KEY,
     MY_ADDRESS: process.env.MY_ADDRESS,
-    MAX_PEERS: process.env.MAX_PEERS ? Number(process.env.MAX_PEERS) : 10,
-    PEERS: process.env.PEERS ? process.env.PEERS.split(",") : [],
+    PEERS: process.env.PEERS ? getPeers(process.env.PEERS) : [],
     ENABLE_CHAIN_REQUEST: process.env.ENABLE_CHAIN_REQUEST === "true",
     ENABLE_API: process.env.ENABLE_API === "true",
     ENABLE_MINING: process.env.ENABLE_MINING === "true",
+    IS_ORDERER_NODE: process.env.IS_ORDERED_NODE === "true",
 
     // other settings
     PUBLISH_KEY: process.env.PUBLISH_KEY,

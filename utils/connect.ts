@@ -1,50 +1,61 @@
 import WebSocket from "ws"
 import { produceMessage } from "./message"
 import { MessageTypeEnum } from "../src/enum"
-import { ConnectedNode } from "../src/types"
+import type { ConnectedNode, Peer } from "../src/types"
 
 interface Params {
-  myAddress: string
-  address: string
+  peer: Peer
+  currentNode: Peer
   connectedNodes: Map<string, ConnectedNode>
 }
 
-async function connect({ connectedNodes, myAddress, address }: Params) {
-  const socket = new WebSocket(address)
+async function connect({ connectedNodes, currentNode, peer }: Params) {
+  const socket = new WebSocket(peer.wsAddress)
 
   socket.on("open", () => {
     socket.send(
       JSON.stringify(
         produceMessage(MessageTypeEnum.HANDSHAKE, [
-          myAddress,
-          ...Array.from(connectedNodes.values(), ({ address }) => address),
+          currentNode,
+          ...Array.from(
+            connectedNodes.values(),
+            ({ publicKey, wsAddress }) => ({
+              wsAddress,
+              publicKey,
+            })
+          ),
         ]) // send the connected address of the current node
       )
     )
 
+    // inform other node that a new node is added to the list
     connectedNodes.forEach((node) =>
       node.socket.send(
-        JSON.stringify(produceMessage(MessageTypeEnum.HANDSHAKE, [address])) // inform other node of the current connected node
+        JSON.stringify(produceMessage(MessageTypeEnum.HANDSHAKE, [peer])) // inform other node of the current connected node
       )
     )
 
     // add the new address into list of connected peers
-    connectedNodes.set(address, {
+    connectedNodes.set(peer.publicKey, {
+      ...peer,
       socket,
-      address,
     })
 
     console.log(
-      `\x1b[32mLOG\x1b[0m [${new Date().toISOString()}] Connected to ${address}.`
+      `\x1b[32mLOG\x1b[0m [${new Date().toISOString()}] Connected to ${
+        peer.publicKey
+      }.`
     )
   })
 
   socket.on("close", () => {
     // remove addres from connected peers when connection closed
-    connectedNodes.delete(address)
+    connectedNodes.delete(peer.publicKey)
 
     console.log(
-      `\x1b[32mLOG\x1b[0m [${new Date().toISOString()}] Disconnected from ${address}.`
+      `\x1b[32mLOG\x1b[0m [${new Date().toISOString()}] Disconnected from ${
+        peer.publicKey
+      }.`
     )
   })
 }

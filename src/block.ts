@@ -3,6 +3,7 @@ import Transaction from "./transaction"
 import { GENESIS_DATA, MINE_RATE } from "./config"
 import { cryptoHashV2 } from "./crypto-hash"
 import { hexToBinary } from "../utils/hexToBinary"
+import { TransactionTypeEnum } from "./enum"
 
 import type { BlockInterface } from "./types"
 import type { Level } from "level"
@@ -130,48 +131,48 @@ class Block {
     for (const tx of block.data) {
       const txSenderAddress = tx.from
 
-      if (!states[txSenderAddress]) {
-        const senderState = await stateDB
-          .get(txSenderAddress)
-          .then((data) => JSON.parse(data))
+      if (
+        tx.data.type === TransactionTypeEnum.STAKE ||
+        tx.data.type === TransactionTypeEnum.COIN_PURCHASE
+      ) {
+        if (!states[txSenderAddress]) {
+          const senderState = await stateDB
+            .get(txSenderAddress)
+            .then((data) => JSON.parse(data))
 
-        states[txSenderAddress] = senderState
-      } else {
-        // update sender address data
-      }
+          if (senderState.balance < tx.data.amount) return false
 
-      if (!existedAddresses.includes(tx.to) && !states[tx.to]) {
-        states[tx.to] = {
-          name: "receiver",
+          // skip stake if the sender doesn't have enough balance
+          states[txSenderAddress] = { ...senderState }
+          states[txSenderAddress].balance -= tx.data.amount
+        } else {
+          // skip stake if the sender doesn't have enough balance
+          if (states[txSenderAddress].balance < tx.data.amount) return false
+
+          states[txSenderAddress].balance -= tx.data.amount
         }
-      }
-
-      if (existedAddresses.includes(tx.to) && !states[tx.to]) {
-        states[tx.to] = await stateDB
-          .get(tx.to)
-          .then((data) => JSON.parse(data))
       }
     }
 
     // Reward
     const rewardTransaction = block.data[0]
-    if (
-      !existedAddresses.includes(rewardTransaction.to) &&
-      !states[rewardTransaction.to]
-    ) {
+    const isMinerAddressExist = existedAddresses.includes(rewardTransaction.to)
+    const totalTransaction = block.data.length - 1
+
+    if (!isMinerAddressExist && !states[rewardTransaction.to]) {
       states[rewardTransaction.to] = {
         name: "miner",
+        balance: 0,
       }
     }
 
-    if (
-      existedAddresses.includes(rewardTransaction.to) &&
-      !states[rewardTransaction.to]
-    ) {
+    if (isMinerAddressExist && !states[rewardTransaction.to]) {
       states[rewardTransaction.to] = await stateDB
         .get(rewardTransaction.to)
         .then((data) => JSON.parse(data))
     }
+
+    states[rewardTransaction.to].balance += totalTransaction
 
     for (const account of Object.keys(states)) {
       await stateDB.put(account, JSON.stringify(states[account]))
