@@ -1,10 +1,27 @@
 import * as yup from "yup"
 
-const transactionSchema = yup.object({
+const signtransactionSchema = yup.object({
   privateKey: yup.string().required(),
-  to: yup.string().required(),
   from: yup.string().required(),
-  data: yup.object().nullable(),
+  to: yup.string().required(),
+  data: yup.object(),
+  lastTransactionHash: yup.string().optional(),
 })
 
-export { transactionSchema }
+const transactionSchema = yup.object({
+  signature: yup.string().required(),
+  from: yup.string().required(),
+  to: yup.string().required(),
+  data: yup.object(),
+  lastTransactionHash: yup.string().optional(),
+})
+
+type TransactionInterface = yup.InferType<typeof transactionSchema>
+type SignTransactionInterface = yup.InferType<typeof signtransactionSchema>
+
+export {
+  signtransactionSchema,
+  transactionSchema,
+  TransactionInterface,
+  SignTransactionInterface,
+}

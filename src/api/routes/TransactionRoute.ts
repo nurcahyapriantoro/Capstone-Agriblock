@@ -4,13 +4,21 @@ import catcher from "../helper/handler"
 import {
   getTransaction,
   signTransaction,
+  createTransaction,
+  getTransactionPool,
 } from "../controller/TransactionController"
 import validate from "../middleware/validation"
-import { transactionSchema } from "../validation/transactionSchema"
+import {
+  signtransactionSchema,
+  transactionSchema,
+} from "../validation/transactionSchema"
 
 const router = Router()
 
+router.post("/create", validate(transactionSchema), catcher(createTransaction))
+router.post("/sign", validate(signtransactionSchema), catcher(signTransaction))
+
+router.get("/pool", catcher(getTransactionPool))
 router.get("/:hash", catcher(getTransaction))
-router.post("/sign", validate(transactionSchema), catcher(signTransaction))
 
 export default router

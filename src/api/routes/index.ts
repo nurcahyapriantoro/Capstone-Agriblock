@@ -1,7 +1,9 @@
 import express from "express"
 import StateRoute from "./StateRoute"
 import BlockRoute from "./BlockRoute"
+import BlockchainRoute from "./BlockchainRoute"
 import TransactionRoute from "./TransactionRoute"
+import UserRoute from "./UserRoute"
 
 const router = express.Router()
 
@@ -11,8 +13,10 @@ router.get("/", function (_req, res) {
   })
 })
 
-router.use("/state", StateRoute)
+router.use("/node", StateRoute)
 router.use("/block", BlockRoute)
+router.use("/blockchain", BlockchainRoute)
 router.use("/transaction", TransactionRoute)
+router.use("/user", UserRoute)
 
 export default router

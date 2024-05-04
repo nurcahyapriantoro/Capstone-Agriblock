@@ -1,13 +1,6 @@
 import type { Request, Response } from "express"
 
-const getLatestBlock = (_req: Request, res: Response) => {
-  res.status(200).json({
-    success: true,
-    data: res.locals.chainInfo.latestBlock,
-  })
-}
-
-const getMiningState = (_req: Request, res: Response) => {
+const getMiningState = async (_req: Request, res: Response) => {
   res.status(200).json({
     success: true,
     data: {
@@ -16,4 +9,13 @@ const getMiningState = (_req: Request, res: Response) => {
   })
 }
 
-export { getLatestBlock, getMiningState }
+const getStaker = async (_req: Request, res: Response) => {
+  res.status(200).json({
+    success: true,
+    data: {
+      staker: res.locals.chainInfo.consensus.stakers,
+    },
+  })
+}
+
+export { getMiningState, getStaker }

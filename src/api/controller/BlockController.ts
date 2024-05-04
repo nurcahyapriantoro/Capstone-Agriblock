@@ -10,7 +10,9 @@ const getBlock = async (req: Request, res: Response) => {
     const block = await blockDB.get(blockNumber)
 
     res.json({
-      data: JSON.parse(block),
+      data: {
+        block: JSON.parse(block),
+      },
     })
   } catch (err) {
     res.status(404).json({
@@ -30,7 +32,9 @@ const getBlockTransactions = async (req: Request, res: Response) => {
       .then((block) => JSON.parse(block))
 
     res.json({
-      data: block.data,
+      data: {
+        transactions: block.data,
+      },
     })
   } catch (err) {
     res.status(404).json({

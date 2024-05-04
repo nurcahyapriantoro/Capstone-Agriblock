@@ -1,11 +1,11 @@
 import express from "express"
 
 import catcher from "../helper/handler"
-import { getLatestBlock, getMiningState } from "../controller/StateController"
+import { getMiningState, getStaker } from "../controller/StateController"
 
 const router = express.Router()
 
-router.get("/latest-block", catcher(getLatestBlock))
 router.get("/mining", catcher(getMiningState))
+router.get("/staker", catcher(getStaker))
 
 export default router

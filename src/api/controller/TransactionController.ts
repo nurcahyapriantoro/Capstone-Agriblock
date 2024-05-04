@@ -4,6 +4,11 @@ import Transaction from "../../transaction"
 import { blockDB, txhashDB } from "../../helper/level.db.client"
 import { getKeyPair } from "../../../utils/keypair"
 import type { Request, Response } from "express"
+import type { ChainInfo } from "../../types"
+import type {
+  TransactionInterface,
+  SignTransactionInterface,
+} from "../validation/transactionSchema"
 
 const getTransaction = async (req: Request, res: Response) => {
   const { hash } = req.params
@@ -37,7 +42,8 @@ const getTransaction = async (req: Request, res: Response) => {
 }
 
 const signTransaction = async (req: Request, res: Response) => {
-  const { privateKey, data, from, to } = req.body
+  const { privateKey, data, from, to, lastTransactionHash } =
+    req.body as SignTransactionInterface
 
   const keyPair = getKeyPair(privateKey)
 
@@ -46,6 +52,7 @@ const signTransaction = async (req: Request, res: Response) => {
       data,
       from,
       to,
+      lastTransactionHash,
     })
     transaction.sign(keyPair)
 
@@ -59,4 +66,48 @@ const signTransaction = async (req: Request, res: Response) => {
   }
 }
 
-export { getTransaction, signTransaction }
+const createTransaction = async (req: Request, res: Response) => {
+  const { data, from, to, signature, lastTransactionHash } =
+    req.body as TransactionInterface
+
+  try {
+    const transaction = new Transaction({
+      data,
+      from,
+      to,
+      signature,
+      lastTransactionHash,
+    })
+
+    const isValid = await res.locals.transactionHandler(transaction)
+
+    if (isValid) {
+      return res.status(201).json({
+        message: "Transaction created successfully",
+      })
+    }
+  } catch (err) {
+    console.error("Invalid transaction data!")
+  }
+
+  res.status(400).json({
+    message: "Invalid transaction",
+  })
+}
+
+const getTransactionPool = async (req: Request, res: Response) => {
+  const chainInfo = res.locals.chainInfo as ChainInfo
+
+  res.json({
+    data: {
+      transactionPool: chainInfo.transactionPool,
+    },
+  })
+}
+
+export {
+  getTransaction,
+  signTransaction,
+  createTransaction,
+  getTransactionPool,
+}
