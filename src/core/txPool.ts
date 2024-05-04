@@ -2,34 +2,27 @@ import type { Level } from "level"
 import Transaction from "../transaction"
 import type { ChainInfo } from "../types"
 
-const addTransaction = async (
+const validateTransaction = async (
   transaction: Transaction,
   chainInfo: ChainInfo,
   stateDB: Level<string, string>
-) => {
-  if (!transaction.isValid()) {
-    console.log(
-      `\x1b[31mERROR\x1b[0m [${new Date().toISOString()}] Failed to add one transaction to pool: Transaction is invalid.`
+): Promise<[boolean, string | undefined]> => {
+  if (!transaction.isValid()) return [false, "Transaction is invalid."]
+
+  const isAddressExist = async () => {
+    const existedAddresses = await stateDB.keys().all()
+
+    return (
+      existedAddresses.includes(transaction.from) ||
+      chainInfo.transactionPool.findIndex(
+        (tx) => tx.to === transaction.from
+      ) !== -1
     )
-    return
   }
 
-  const txPool = chainInfo.transactionPool
-  const txSenderAddress = transaction.from
-  const existedAddresses = await stateDB.keys().all()
+  if (!isAddressExist()) return [false, "Sender does not exist."]
 
-  if (!existedAddresses.includes(txSenderAddress)) {
-    console.log(
-      `\x1b[31mERROR\x1b[0m [${new Date().toISOString()}] Failed to add one transaction to pool: Sender does not exist.`
-    )
-
-    return
-  }
-
-  txPool.push(transaction)
-  console.log(
-    `\x1b[32mLOG\x1b[0m [${new Date().toISOString()}] Added one transaction to pool.`
-  )
+  return [true, undefined]
 }
 
 const clearDepreciatedTransaction = (
@@ -49,4 +42,4 @@ const clearDepreciatedTransaction = (
   )
 }
 
-export { addTransaction, clearDepreciatedTransaction }
+export { validateTransaction, clearDepreciatedTransaction }

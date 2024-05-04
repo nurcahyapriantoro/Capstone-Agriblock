@@ -103,6 +103,7 @@ class Block {
   }) {
     const mappedTransactions = block.data.map(
       (tx) =>
+        // TODO: implement lastTransactionHash
         new Transaction({
           data: tx.data,
           from: tx.from,
@@ -142,7 +143,6 @@ class Block {
 
           if (senderState.balance < tx.data.amount) return false
 
-          // skip stake if the sender doesn't have enough balance
           states[txSenderAddress] = { ...senderState }
           states[txSenderAddress].balance -= tx.data.amount
         } else {

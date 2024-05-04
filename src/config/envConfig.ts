@@ -19,6 +19,7 @@ export interface ENV {
   ENABLE_API: boolean
   ENABLE_CHAIN_REQUEST: boolean
   IS_ORDERER_NODE: boolean
+  GENESIS_PRIVATE_KEY: string
 
   // other settings
   PUBLISH_KEY: string | undefined
@@ -43,6 +44,7 @@ export interface Config {
   ENABLE_API: boolean
   ENABLE_CHAIN_REQUEST: boolean
   IS_ORDERER_NODE: boolean
+  GENESIS_PRIVATE_KEY: string
 
   // other settings
   PUBLISH_KEY: string
@@ -78,6 +80,7 @@ const getConfig = (): ENV => {
     ENABLE_API: process.env.ENABLE_API === "true",
     ENABLE_MINING: process.env.ENABLE_MINING === "true",
     IS_ORDERER_NODE: process.env.IS_ORDERED_NODE === "true",
+    GENESIS_PRIVATE_KEY: process.env.GENESIS_PRIVATE_KEY as string,
 
     // other settings
     PUBLISH_KEY: process.env.PUBLISH_KEY,

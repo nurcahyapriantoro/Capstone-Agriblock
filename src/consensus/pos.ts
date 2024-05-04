@@ -1,16 +1,36 @@
 import Lot from "./lot"
 import { distance } from "fastest-levenshtein"
+import { stakeDb } from "../helper/level.db.client"
 
 class ProofOfStake {
   stakers: Record<string, number>
 
-  constructor() {
-    this.stakers = {}
+  constructor(data: Record<string, number>) {
+    this.stakers = data
   }
 
-  update(publicKey: string, stake: number) {
+  static async initialize() {
+    const stakers = await stakeDb
+      .values()
+      .all()
+      .then((data) =>
+        data.reduce((prev, cur) => {
+          const parsedData = JSON.parse(cur)
+          return { ...prev, [parsedData.publicKey]: parsedData.stake }
+        }, {})
+      )
+
+    return new ProofOfStake(stakers)
+  }
+
+  async update(publicKey: string, stake: number) {
     if (this.stakers[publicKey]) this.stakers[publicKey] += stake
     else this.stakers[publicKey] = stake
+
+    await stakeDb.put(
+      publicKey,
+      JSON.stringify({ publicKey, stake: this.stakers[publicKey] })
+    )
   }
 
   get(publicKey: string) {

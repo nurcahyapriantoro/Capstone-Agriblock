@@ -17,7 +17,6 @@ const app = express()
 
 const api = (
   port: number,
-  keyPair: ec.KeyPair,
   client: {
     publicKey: string
     mining: boolean
@@ -32,8 +31,11 @@ const api = (
     res: Response,
     next: NextFunction
   ) => {
-    res.locals.chainInfo = chainInfo
-    res.locals.mining = mining
+    res.locals = {
+      chainInfo,
+      mining,
+      transactionHandler,
+    }
     next()
   }
 

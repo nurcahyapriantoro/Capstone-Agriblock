@@ -13,19 +13,15 @@ async function connect({ connectedNodes, currentNode, peer }: Params) {
   const socket = new WebSocket(peer.wsAddress)
 
   socket.on("open", () => {
+    console.log("sending next message")
     socket.send(
-      JSON.stringify(
-        produceMessage(MessageTypeEnum.HANDSHAKE, [
-          currentNode,
-          ...Array.from(
-            connectedNodes.values(),
-            ({ publicKey, wsAddress }) => ({
-              wsAddress,
-              publicKey,
-            })
-          ),
-        ]) // send the connected address of the current node
-      )
+      produceMessage(MessageTypeEnum.HANDSHAKE, [
+        currentNode,
+        ...Array.from(connectedNodes.values(), ({ publicKey, wsAddress }) => ({
+          wsAddress,
+          publicKey,
+        })),
+      ]) // send the connected address of the current node
     )
 
     // inform other node that a new node is added to the list
@@ -48,7 +44,20 @@ async function connect({ connectedNodes, currentNode, peer }: Params) {
     )
   })
 
+  socket.on("error", (err) => {
+    // TODO: implement reconnect mechanism when connection error
+
+    console.log(
+      `\x1b[31mERROR\x1b[0m [${new Date().toISOString()}] Error when trying to connect to ${
+        peer.publicKey
+      }.`,
+      err
+    )
+  })
+
   socket.on("close", () => {
+    // TODO: implement reconnect mechanism when connection closed
+
     // remove addres from connected peers when connection closed
     connectedNodes.delete(peer.publicKey)
 

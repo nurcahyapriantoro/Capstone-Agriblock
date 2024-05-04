@@ -25,6 +25,7 @@ interface BlockchainInterface {
 type TransactionInterface<T = any> = {
   from: string
   to: string
+  lastTransactionHash?: string
   data: T
 }
 
@@ -37,13 +38,13 @@ interface ConnectedNode extends Peer {
   socket: WebSocket
 }
 
-interface ChainInfo {
+interface ChainInfo<T = ProofOfStake> {
   syncQueue: SyncQueue
   latestBlock: Block
   latestSyncBlock: null | Block
   transactionPool: Array<Transaction>
   checkedBlock: Record<string, boolean>
-  consensus: ProofOfStake
+  consensus: T
 }
 
 interface StateInterface {

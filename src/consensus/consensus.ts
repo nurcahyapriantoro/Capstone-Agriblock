@@ -31,6 +31,7 @@ async function verifyBlock(
     hexToBinary(newBlock.hash).substring(0, newBlock.difficulty) ===
       "0".repeat(newBlock.difficulty) &&
     // Check transactions
+    // TODO: implement lastTransactionHash
     newBlock.data.every((tx) =>
       new Transaction({
         data: tx.data,

@@ -8,36 +8,42 @@ interface TransactionParams extends TransactionInterface {
   signature?: string
 }
 class Transaction {
-  from: string
-  to: string
-  signature: string | null
+  from: string // sender adress
+  to: string // receiver address
+  // NOTES: used to link between transaction, get information about last transaction (block hash and transaction number)
+  lastTransactionHash?: string
+  signature?: string
   data: any
 
-  constructor({ from, to, data, signature }: TransactionParams) {
+  constructor({
+    from,
+    to,
+    data,
+    signature,
+    lastTransactionHash,
+  }: TransactionParams) {
     this.from = from
     this.to = to
     this.data = data
-    this.signature = signature ?? null
+    this.lastTransactionHash = lastTransactionHash
+    this.signature = signature
   }
 
   sign(keyPair: ec.KeyPair) {
     if (keyPair.getPublic("hex") === this.from) {
-      this.signature = keyPair
-        .sign(cryptoHashV2(this.from, this.to, this.data))
-        .toDER("hex")
+      this.signature = keyPair.sign(this.getHash()).toDER("hex")
     }
   }
 
   isValid() {
     return (
-      this.from === MINT_PUBLIC_ADDRESS ||
-      (this.signature &&
-        verifyPublicKey(
-          this.from,
-          cryptoHashV2(this.from, this.to, this.data),
-          this.signature
-        ))
+      this.signature &&
+      verifyPublicKey(this.from, this.getHash(), this.signature)
     )
+  }
+
+  getHash() {
+    return cryptoHashV2(this.from, this.to, this.data, this.lastTransactionHash)
   }
 }
 
