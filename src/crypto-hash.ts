@@ -9,7 +9,12 @@ const cryptoHash = (...args: Array<any>) => {
 export const cryptoHashV2 = (...args: Array<any>) => {
   const hash = createHash("sha256")
 
-  hash.update(args.sort().join(" "))
+  hash.update(
+    args
+      .map((arg) => (typeof arg === "object" ? JSON.stringify(arg) : arg))
+      .sort()
+      .join(" ")
+  )
 
   return hash.digest("hex")
 }

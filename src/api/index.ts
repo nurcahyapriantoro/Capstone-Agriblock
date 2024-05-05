@@ -4,7 +4,6 @@ import express, {
   type Request,
 } from "express"
 import cors from "cors"
-import { ec } from "elliptic"
 
 import Transaction from "../transaction"
 import apiRoutes from "./routes"

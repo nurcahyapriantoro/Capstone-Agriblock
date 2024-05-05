@@ -51,6 +51,8 @@ class Block {
     let { difficulty } = lastBlock
     let nonce = 0
 
+    const dataString = JSON.stringify(data)
+
     do {
       nonce++
       timestamp = Date.now()
@@ -59,7 +61,7 @@ class Block {
         timestamp,
       })
 
-      hash = cryptoHashV2(timestamp, lastHash, data, nonce, difficulty)
+      hash = cryptoHashV2(timestamp, lastHash, dataString, nonce, difficulty)
       console.log(
         `difficulty ${difficulty}, timestamp ${timestamp}, nonce ${nonce}, hash ${hash}`
       )
@@ -132,6 +134,7 @@ class Block {
     for (const tx of block.data) {
       const txSenderAddress = tx.from
 
+      // NOTES: update sender's balance
       if (
         tx.data.type === TransactionTypeEnum.STAKE ||
         tx.data.type === TransactionTypeEnum.COIN_PURCHASE
@@ -141,16 +144,35 @@ class Block {
             .get(txSenderAddress)
             .then((data) => JSON.parse(data))
 
+          // mark the block as invalid if the sender doesn't have enough balance
           if (senderState.balance < tx.data.amount) return false
 
-          states[txSenderAddress] = { ...senderState }
+          states[txSenderAddress] = senderState
           states[txSenderAddress].balance -= tx.data.amount
         } else {
-          // skip stake if the sender doesn't have enough balance
+          // mark the block as invalid if the sender doesn't have enough balance
           if (states[txSenderAddress].balance < tx.data.amount) return false
 
           states[txSenderAddress].balance -= tx.data.amount
         }
+      }
+
+      // NOTES: update receiver's balance
+      if (tx.data.type === TransactionTypeEnum.COIN_PURCHASE) {
+        if (!existedAddresses.includes(tx.to) && !states[tx.to]) {
+          states[tx.to] = {
+            address: tx.to,
+            balance: 0,
+          }
+        }
+
+        if (existedAddresses.includes(tx.to) && !states[tx.to]) {
+          states[tx.to] = await stateDB
+            .get(tx.to)
+            .then((data) => JSON.parse(data))
+        }
+
+        states[tx.to].balance += tx.data.amount
       }
     }
 
@@ -161,7 +183,7 @@ class Block {
 
     if (!isMinerAddressExist && !states[rewardTransaction.to]) {
       states[rewardTransaction.to] = {
-        name: "miner",
+        address: rewardTransaction.to,
         balance: 0,
       }
     }

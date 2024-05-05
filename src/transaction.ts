@@ -2,7 +2,6 @@ import { ec } from "elliptic"
 import { TransactionInterface } from "./types"
 import { cryptoHashV2 } from "./crypto-hash"
 import { verifyPublicKey } from "../utils/keypair"
-import { MINT_PUBLIC_ADDRESS } from "./config"
 
 interface TransactionParams extends TransactionInterface {
   signature?: string
@@ -32,6 +31,8 @@ class Transaction {
   sign(keyPair: ec.KeyPair) {
     if (keyPair.getPublic("hex") === this.from) {
       this.signature = keyPair.sign(this.getHash()).toDER("hex")
+    } else {
+      throw "Invalid private key!"
     }
   }
 

@@ -8,15 +8,12 @@ import {
   getTransactionPool,
 } from "../controller/TransactionController"
 import validate from "../middleware/validation"
-import {
-  signtransactionSchema,
-  transactionSchema,
-} from "../validation/transactionSchema"
+import { transactionSchema } from "../validation/transactionSchema"
 
 const router = Router()
 
 router.post("/create", validate(transactionSchema), catcher(createTransaction))
-router.post("/sign", validate(signtransactionSchema), catcher(signTransaction))
+router.post("/sign", validate(transactionSchema), catcher(signTransaction))
 
 router.get("/pool", catcher(getTransactionPool))
 router.get("/:hash", catcher(getTransaction))

@@ -10,7 +10,7 @@ const MINE_REWARD = 100
 const GENESIS_DATA = {
   timestamp: 1,
   lastHash: "----",
-  hash: "hash-one",
+  hash: "f818c7b8df6639e56317cdd4f414154202bfd4e4c0bfba0084ef6ab0a78ad510",
   difficulty: INITIAL_DIFFICULTY,
   nonce: 0,
   data: [],

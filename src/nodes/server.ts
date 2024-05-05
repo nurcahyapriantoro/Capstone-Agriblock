@@ -347,7 +347,7 @@ async function startServer(params: Config) {
       await stateDB.put(
         genesisPublicKey,
         JSON.stringify({
-          name: "first-account",
+          address: genesisPublicKey,
           balance: INITIAL_SUPPLY,
         })
       )
@@ -415,7 +415,7 @@ async function startServer(params: Config) {
       await stateDB.put(
         genesisPublicKey,
         JSON.stringify({
-          name: "firstAccount",
+          address: genesisPublicKey,
           balance: INITIAL_SUPPLY,
         })
       )
@@ -463,6 +463,8 @@ const loopMine = (
       const forgerPublicKey = chainInfo.consensus.forger(
         chainInfo.latestBlock.hash
       )
+
+      console.log(forgerPublicKey)
 
       if (forgerPublicKey) {
         if (forgerPublicKey === publicKey) {
@@ -516,6 +518,7 @@ const mine = async (publicKey: string, keyPair: ec.KeyPair) => {
   for (const tx of chainInfo.transactionPool) {
     const txSenderAddress = tx.from
 
+    // NOTES: update sender's balance
     if (
       tx.data.type === TransactionTypeEnum.STAKE ||
       tx.data.type === TransactionTypeEnum.COIN_PURCHASE
@@ -528,7 +531,7 @@ const mine = async (publicKey: string, keyPair: ec.KeyPair) => {
         // skip stake if the sender doesn't have enough balance
         if (senderState.balance < tx.data.amount) continue
 
-        states[txSenderAddress] = { ...senderState }
+        states[txSenderAddress] = senderState
         states[txSenderAddress].balance -= tx.data.amount
       } else {
         // skip stake if the sender doesn't have enough balance
@@ -536,6 +539,24 @@ const mine = async (publicKey: string, keyPair: ec.KeyPair) => {
 
         states[txSenderAddress].balance -= tx.data.amount
       }
+    }
+
+    // NOTES: update receiver's balance
+    if (tx.data.type === TransactionTypeEnum.COIN_PURCHASE) {
+      if (!existedAddresses.includes(tx.to) && !states[tx.to]) {
+        states[tx.to] = {
+          address: tx.to,
+          balance: 0,
+        }
+      }
+
+      if (existedAddresses.includes(tx.to) && !states[tx.to]) {
+        states[tx.to] = await stateDB
+          .get(tx.to)
+          .then((data) => JSON.parse(data))
+      }
+
+      states[tx.to].balance += tx.data.amount
     }
 
     // update recipient address data
@@ -580,7 +601,7 @@ const mine = async (publicKey: string, keyPair: ec.KeyPair) => {
 
         if (!isMinerAddressExist && !states[rewardTransaction.to]) {
           states[rewardTransaction.to] = {
-            name: "miner",
+            address: rewardTransaction.to,
             balance: 0,
           }
         }

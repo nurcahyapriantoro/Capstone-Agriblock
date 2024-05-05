@@ -5,10 +5,7 @@ import { blockDB, txhashDB } from "../../helper/level.db.client"
 import { getKeyPair } from "../../../utils/keypair"
 import type { Request, Response } from "express"
 import type { ChainInfo } from "../../types"
-import type {
-  TransactionInterface,
-  SignTransactionInterface,
-} from "../validation/transactionSchema"
+import type { TransactionInterface } from "../validation/transactionSchema"
 
 const getTransaction = async (req: Request, res: Response) => {
   const { hash } = req.params
@@ -43,7 +40,7 @@ const getTransaction = async (req: Request, res: Response) => {
 
 const signTransaction = async (req: Request, res: Response) => {
   const { privateKey, data, from, to, lastTransactionHash } =
-    req.body as SignTransactionInterface
+    req.body as TransactionInterface
 
   const keyPair = getKeyPair(privateKey)
 
@@ -60,24 +57,26 @@ const signTransaction = async (req: Request, res: Response) => {
       data: transaction,
     })
   } catch (err) {
-    res.json({
-      message: "success",
+    res.status(400).json({
+      message: err,
     })
   }
 }
 
 const createTransaction = async (req: Request, res: Response) => {
-  const { data, from, to, signature, lastTransactionHash } =
+  const { data, from, to, privateKey, lastTransactionHash } =
     req.body as TransactionInterface
+
+  const keyPair = getKeyPair(privateKey)
 
   try {
     const transaction = new Transaction({
       data,
       from,
       to,
-      signature,
       lastTransactionHash,
     })
+    transaction.sign(keyPair)
 
     const isValid = await res.locals.transactionHandler(transaction)
 

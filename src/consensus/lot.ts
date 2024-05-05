@@ -12,9 +12,10 @@ class Lot {
   }
 
   lotHash() {
-    return Array(this.iteration).reduce((prev) => {
-      return cryptoHashV2(prev)
-    }, this.publicKey + this.lastBlockHash)
+    return Array.from({ length: this.iteration }).reduce<string>(
+      (prev) => cryptoHashV2(prev),
+      this.publicKey + this.lastBlockHash
+    )
   }
 }
 

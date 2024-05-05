@@ -1,5 +1,4 @@
 import Lot from "./lot"
-import { distance } from "fastest-levenshtein"
 import { stakeDb } from "../helper/level.db.client"
 
 class ProofOfStake {
@@ -48,12 +47,16 @@ class ProofOfStake {
   }
 
   winnerLot(lots: Array<Lot>, seed: string) {
+    const referenceHashInt = parseInt(seed, 16)
+
     const { winnerLot } = lots.reduce<{
       winnerLot: Lot | null
       leastOffSet: number | null
     }>(
       (prev, lot) => {
-        const offSet = distance(seed, lot.lotHash())
+        const lotHashInt = parseInt(lot.lotHash(), 16)
+
+        const offSet = Math.abs(lotHashInt - referenceHashInt)
 
         if (prev.leastOffSet === null || offSet < prev.leastOffSet) {
           return {
