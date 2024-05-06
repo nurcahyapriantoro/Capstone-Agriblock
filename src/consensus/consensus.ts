@@ -37,6 +37,7 @@ async function verifyBlock(
         data: tx.data,
         from: tx.from,
         to: tx.to,
+        lastTransactionHash: tx.lastTransactionHash,
         signature: tx.signature as string,
       }).isValid()
     ) &&

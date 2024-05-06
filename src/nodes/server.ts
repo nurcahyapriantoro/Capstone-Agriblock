@@ -76,6 +76,11 @@ async function startServer(params: Config) {
       err
     )
   )
+
+  process.on("exit", (err) => {
+    worker.kill()
+  })
+
   console.log(
     `\x1b[32mLOG\x1b[0m [${new Date().toISOString()}] P2P server listening on PORT`,
     APP_PORT
