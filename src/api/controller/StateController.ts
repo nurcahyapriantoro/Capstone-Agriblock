@@ -18,4 +18,11 @@ const getStaker = async (_req: Request, res: Response) => {
   })
 }
 
-export { getMiningState, getStaker }
+const getConnectedNode = async (_req: Request, res: Response) => {
+  res.json({
+    data: {
+      connectedNodes: res.locals.getConnectedNode(),
+    },
+  })
+}
+export { getMiningState, getStaker, getConnectedNode }

@@ -1,5 +1,5 @@
 import type { Request, Response } from "express"
-import { blockDB } from "../../helper/level.db.client"
+import { blockDB, txhashDB } from "../../helper/level.db.client"
 
 const getLastBlock = async (req: Request, res: Response) => {
   const blockKeys = await blockDB.keys().all()
@@ -16,14 +16,16 @@ const getLastBlock = async (req: Request, res: Response) => {
   })
 }
 
-const getTotalBlock = async (req: Request, res: Response) => {
+const getBlockchainState = async (_req: Request, res: Response) => {
   const blockKeys = await blockDB.keys().all()
+  const txKeys = await txhashDB.keys().all()
 
   res.json({
     data: {
       totalBlock: blockKeys.length,
+      totalTransaction: txKeys.length,
     },
   })
 }
 
-export { getLastBlock, getTotalBlock }
+export { getLastBlock, getBlockchainState }

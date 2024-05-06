@@ -207,6 +207,7 @@ class Block {
           from: tx.from,
           to: tx.to,
           signature: tx.signature as string,
+          lastTransactionHash: tx.lastTransactionHash,
         })
     )
 

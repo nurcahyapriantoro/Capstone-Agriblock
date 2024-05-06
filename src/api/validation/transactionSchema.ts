@@ -8,6 +8,26 @@ const transactionSchema = yup.object({
   lastTransactionHash: yup.string().optional(),
 })
 
-type TransactionInterface = yup.InferType<typeof transactionSchema>
+const coinTransferSchema = yup.object({
+  privateKey: yup.string().required(),
+  address: yup.string().required(),
+  amount: yup.number().required(),
+})
 
-export { transactionSchema, TransactionInterface }
+const coinStakeSchema = yup.object({
+  privateKey: yup.string().required(),
+  amount: yup.number().required(),
+})
+
+type TransactionInterface = yup.InferType<typeof transactionSchema>
+type CoinTransferInterface = yup.InferType<typeof coinTransferSchema>
+type CoinStakeInterface = yup.InferType<typeof coinStakeSchema>
+
+export {
+  transactionSchema,
+  coinTransferSchema,
+  coinStakeSchema,
+  TransactionInterface,
+  CoinTransferInterface,
+  CoinStakeInterface,
+}

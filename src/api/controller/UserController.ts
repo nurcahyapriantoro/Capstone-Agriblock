@@ -15,7 +15,7 @@ const generateWallet = async (_req: Request, res: Response) => {
   await stateDB.put(
     keyPair.getPublic("hex"),
     JSON.stringify({
-      name: "user",
+      address: keyPair.getPublic("hex"),
     })
   )
 
@@ -40,4 +40,22 @@ const getUserList = async (_req: Request, res: Response) => {
   })
 }
 
-export { generateWallet, getUserList }
+const getUser = async (req: Request, res: Response) => {
+  const { address } = req.params
+
+  try {
+    const user = await stateDB.get(address).then((data) => JSON.parse(data))
+
+    res.json({
+      data: {
+        user,
+      },
+    })
+  } catch (err) {
+    res.status(404).json({
+      message: "User not found",
+    })
+  }
+}
+
+export { generateWallet, getUserList, getUser }

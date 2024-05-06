@@ -5,7 +5,7 @@ import { getBlock, getBlockTransactions } from "../controller/BlockController"
 
 const router = Router()
 
-router.get("/:hash", catcher(getBlock))
-router.get("/:hash/transactions", catcher(getBlockTransactions))
+router.get("/", catcher(getBlock))
+router.get("/transactions", catcher(getBlockTransactions))
 
 export default router

@@ -5,7 +5,12 @@ import { blockDB, txhashDB } from "../../helper/level.db.client"
 import { getKeyPair } from "../../../utils/keypair"
 import type { Request, Response } from "express"
 import type { ChainInfo } from "../../types"
-import type { TransactionInterface } from "../validation/transactionSchema"
+import type {
+  CoinStakeInterface,
+  CoinTransferInterface,
+  TransactionInterface,
+} from "../validation/transactionSchema"
+import { TransactionTypeEnum } from "../../enum"
 
 const getTransaction = async (req: Request, res: Response) => {
   const { hash } = req.params
@@ -104,9 +109,75 @@ const getTransactionPool = async (req: Request, res: Response) => {
   })
 }
 
+const transferCoin = async (req: Request, res: Response) => {
+  const { privateKey, address, amount } = req.body as CoinTransferInterface
+
+  const keyPair = getKeyPair(privateKey)
+
+  try {
+    const transaction = new Transaction({
+      from: keyPair.getPublic("hex"),
+      to: address,
+      data: {
+        type: TransactionTypeEnum.COIN_PURCHASE,
+        amount,
+      },
+    })
+    transaction.sign(keyPair)
+
+    const isValid = await res.locals.transactionHandler(transaction)
+
+    if (isValid) {
+      return res.status(201).json({
+        message: `${amount} coin transfered to ${address}.`,
+      })
+    }
+  } catch (err) {
+    console.error(err)
+  }
+
+  res.status(400).json({
+    message: "Can't transfer coin, please check your balance!",
+  })
+}
+
+const stakeCoin = async (req: Request, res: Response) => {
+  const { privateKey, amount } = req.body as CoinStakeInterface
+
+  const keyPair = getKeyPair(privateKey)
+  const publicKey = keyPair.getPublic("hex")
+
+  try {
+    const transaction = new Transaction({
+      from: publicKey,
+      to: publicKey,
+      data: {
+        type: TransactionTypeEnum.STAKE,
+        amount,
+      },
+    })
+    transaction.sign(keyPair)
+
+    const isValid = await res.locals.transactionHandler(transaction)
+
+    if (isValid) {
+      return res.status(201).json({
+        message: `${amount} coin staked to ${publicKey}`,
+      })
+    }
+  } catch (err) {
+    console.error(err)
+  }
+
+  res.status(400).json({
+    message: "Can't stake coin, please check your balance!",
+  })
+}
 export {
   getTransaction,
   signTransaction,
   createTransaction,
   getTransactionPool,
+  transferCoin,
+  stakeCoin,
 }
