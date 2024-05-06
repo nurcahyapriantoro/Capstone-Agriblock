@@ -10,7 +10,7 @@ import apiRoutes from "./routes"
 import catch404Error from "./middleware/catch404"
 import handleError from "./middleware/errorHandler"
 
-import type { ChainInfo } from "../types"
+import type { ChainInfo, ConnectedNode } from "../types"
 
 const app = express()
 
@@ -20,10 +20,11 @@ const api = (
     publicKey: string
     mining: boolean
     chainInfo: ChainInfo
+    connectedNodes: Map<string, ConnectedNode>
   },
   transactionHandler: (transaction: Transaction) => void
 ) => {
-  const { chainInfo, publicKey, mining } = client
+  const { chainInfo, publicKey, mining, connectedNodes } = client
 
   const localsMiddleware = async (
     _req: Request,
@@ -33,6 +34,9 @@ const api = (
     res.locals = {
       chainInfo,
       mining,
+      getConnectedNode: () => {
+        return [...connectedNodes.values()].map((node) => node.publicKey)
+      },
       transactionHandler,
     }
     next()

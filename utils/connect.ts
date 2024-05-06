@@ -9,6 +9,11 @@ interface Params {
   connectedNodes: Map<string, ConnectedNode>
 }
 
+let reconnectInterval = 1000 // Initial reconnect interval in milliseconds
+let maxReconnectInterval = 30000 // Maximum reconnect interval in milliseconds
+let reconnectAttempts = 0
+const maxReconnectAttempts = 10
+
 async function connect({ connectedNodes, currentNode, peer }: Params) {
   const socket = new WebSocket(peer.wsAddress)
 
@@ -45,7 +50,8 @@ async function connect({ connectedNodes, currentNode, peer }: Params) {
   })
 
   socket.on("error", (err) => {
-    // TODO: implement reconnect mechanism when connection error
+    // reconnect if error
+    reconnect({ connectedNodes, currentNode, peer })
 
     console.log(
       `\x1b[31mERROR\x1b[0m [${new Date().toISOString()}] Error when trying to connect to ${
@@ -56,8 +62,6 @@ async function connect({ connectedNodes, currentNode, peer }: Params) {
   })
 
   socket.on("close", () => {
-    // TODO: implement reconnect mechanism when connection closed
-
     // remove addres from connected peers when connection closed
     connectedNodes.delete(peer.publicKey)
 
@@ -67,6 +71,23 @@ async function connect({ connectedNodes, currentNode, peer }: Params) {
       }.`
     )
   })
+}
+
+const reconnect = (params: Params) => {
+  if (reconnectAttempts < maxReconnectAttempts) {
+    reconnectAttempts++
+    let reconnectIntervalWithBackoff = Math.min(
+      maxReconnectInterval,
+      reconnectInterval * ++reconnectAttempts
+    )
+    console.log(
+      `Attempting to reconnect in ${reconnectIntervalWithBackoff} milliseconds...`
+    )
+    setTimeout(() => connect(params), reconnectIntervalWithBackoff)
+  } else {
+    console.error("Exceeded maximum number of reconnect attempts.")
+    // You might want to notify the user or take other appropriate actions here
+  }
 }
 
 export default connect

@@ -244,6 +244,12 @@ async function startServer(params: Config) {
                 }
 
                 return true
+              } else {
+                console.log(
+                  `\x1b[32mLOG\x1b[0m [${new Date().toISOString()}] Received invalid block ${JSON.stringify(
+                    block.hash
+                  )}.`
+                )
               }
 
               return false
@@ -408,6 +414,11 @@ async function startServer(params: Config) {
 
     if ((blockNumbers.length as number) !== 0) {
       currentSyncBlock = Math.max(...blockNumbers.map((key) => parseInt(key)))
+      chainInfo.latestBlock = await blockDB
+        .get(String(currentSyncBlock))
+        .then((data) => JSON.parse(data))
+
+      currentSyncBlock += 1
     }
 
     if (currentSyncBlock === 1) {
@@ -448,6 +459,7 @@ async function startServer(params: Config) {
         publicKey,
         chainInfo,
         mining: ENABLE_MINING,
+        connectedNodes,
       },
       transactionHandler
     )
@@ -500,18 +512,9 @@ const mine = async (publicKey: string, keyPair: ec.KeyPair) => {
     })
   }
 
-  const rewardTransaction = new Transaction({
-    from: keyPair.getPublic("hex"),
-    to: publicKey,
-    data: {
-      type: TransactionTypeEnum.MINING_REWARD,
-    },
-  })
-  rewardTransaction.sign(keyPair)
-
   // Collect a list of transactions to mine
   const states: Record<string, any> = {}
-  const transactionsToMine = [rewardTransaction]
+  const transactionsToMine = []
 
   const existedAddresses = await stateDB.keys().all()
 
@@ -562,6 +565,18 @@ const mine = async (publicKey: string, keyPair: ec.KeyPair) => {
     // update recipient address data
     transactionsToMine.push(tx)
   }
+
+  const rewardTransaction = new Transaction({
+    from: keyPair.getPublic("hex"),
+    to: publicKey,
+    data: {
+      type: TransactionTypeEnum.MINING_REWARD,
+      minedTransaction: transactionsToMine.map((tx) => tx.getHash()),
+    },
+  })
+  rewardTransaction.sign(keyPair)
+
+  transactionsToMine.unshift(rewardTransaction)
 
   // Mine the block.
   startWorker(chainInfo.latestBlock, transactionsToMine)
