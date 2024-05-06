@@ -11,7 +11,11 @@ import api from "../api"
 
 import connect from "../../utils/connect"
 import { getKeyPair } from "../../utils/keypair"
-import { MessageTypeEnum, TransactionTypeEnum } from "../enum"
+import {
+  MessageTypeEnum,
+  TransactionTypeEnum,
+  blockchainTransactions,
+} from "../enum"
 import { produceMessage, sendMessage } from "../../utils/message"
 import { GENESIS_DATA, INITIAL_SUPPLY } from "../config"
 import { verifyBlock } from "../consensus/consensus"
@@ -594,15 +598,28 @@ const mine = async (publicKey: string, keyPair: ec.KeyPair) => {
         // Assign transaction index and block number to transaction hash
         for (let txIndex = 0; txIndex < newBlock.data.length; txIndex++) {
           const tx = newBlock.data[txIndex]
+          const txHash = tx.getHash()
 
           await txhashDB.put(
-            tx.getHash(),
+            txHash,
             newBlock.number.toString() + " " + txIndex.toString()
           )
 
           // update the node stake
           if (tx.data.type === TransactionTypeEnum.STAKE)
             await chainInfo.consensus.update(tx.to, tx.data.amount)
+
+          if (blockchainTransactions.includes(tx.data.type)) continue
+
+          // update user transaction history
+          states[tx.to].outgoingTransactions = [
+            ...(states[tx.to].outgoingTransactions ?? []),
+            txHash,
+          ]
+          states[tx.from].incomingTransactions = [
+            ...(states[tx.from].incomingTransactions ?? []),
+            txHash,
+          ]
         }
 
         chainInfo.latestBlock = newBlock // Update latest block cache

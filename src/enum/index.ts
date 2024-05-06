@@ -17,4 +17,6 @@ enum TransactionTypeEnum {
   STAKE = "STAKE",
 }
 
-export { MessageTypeEnum, TransactionTypeEnum }
+const blockchainTransactions = Object.values(TransactionTypeEnum)
+
+export { MessageTypeEnum, TransactionTypeEnum, blockchainTransactions }

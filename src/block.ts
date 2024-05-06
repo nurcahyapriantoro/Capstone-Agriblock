@@ -3,7 +3,7 @@ import Transaction from "./transaction"
 import { GENESIS_DATA, MINE_RATE } from "./config"
 import { cryptoHashV2 } from "./crypto-hash"
 import { hexToBinary } from "../utils/hexToBinary"
-import { TransactionTypeEnum } from "./enum"
+import { TransactionTypeEnum, blockchainTransactions } from "./enum"
 
 import type { BlockInterface } from "./types"
 import type { Level } from "level"
@@ -133,6 +133,7 @@ class Block {
 
     for (const tx of block.data) {
       const txSenderAddress = tx.from
+      const txHash = tx.getHash()
 
       // NOTES: update sender's balance
       if (
@@ -173,6 +174,18 @@ class Block {
         }
 
         states[tx.to].balance += tx.data.amount
+      }
+
+      // update user transaction history
+      if (!blockchainTransactions.includes(tx.data.type)) {
+        states[tx.to].outgoingTransactions = [
+          ...(states[tx.to].outgoingTransactions ?? []),
+          txHash,
+        ]
+        states[tx.from].incomingTransactions = [
+          ...(states[tx.from].incomingTransactions ?? []),
+          txHash,
+        ]
       }
     }
 
