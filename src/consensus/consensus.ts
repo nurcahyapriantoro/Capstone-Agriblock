@@ -1,5 +1,4 @@
 import Block from "../block"
-import Transaction from "../transaction"
 
 import { ChainInfo } from "../types"
 import { cryptoHashV2 } from "../crypto-hash"
@@ -32,15 +31,7 @@ async function verifyBlock(
       "0".repeat(newBlock.difficulty) &&
     // Check transactions
     // TODO: implement lastTransactionHash
-    newBlock.data.every((tx) =>
-      new Transaction({
-        data: tx.data,
-        from: tx.from,
-        to: tx.to,
-        lastTransactionHash: tx.lastTransactionHash,
-        signature: tx.signature as string,
-      }).isValid()
-    ) &&
+    newBlock.data.every((tx) => tx.isValid()) &&
     // Check timestamp
     newBlock.timestamp > chainInfo.latestBlock.timestamp &&
     newBlock.timestamp < Date.now() &&

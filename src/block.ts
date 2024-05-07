@@ -103,21 +103,8 @@ class Block {
     block: Block
     stateDB: Level<string, string>
   }) {
-    const mappedTransactions = block.data.map(
-      (tx) =>
-        // TODO: implement lastTransactionHash
-        new Transaction({
-          data: tx.data,
-          from: tx.from,
-          to: tx.to,
-          signature: tx.signature as string,
-          lastTransactionHash: tx.lastTransactionHash,
-        })
-    )
-
     // Basic verification
-    if (!mappedTransactions.every((transaction) => transaction.isValid()))
-      return false
+    if (!block.data.every((transaction) => transaction.isValid())) return false
 
     // Get all existing addresses
     const addressesInBlock = block.data.map((tx) => tx.from)
@@ -134,7 +121,6 @@ class Block {
 
     for (const tx of block.data) {
       const txSenderAddress = tx.from
-      const txHash = tx.getHash()
 
       // NOTES: update sender's balance
       if (
@@ -177,13 +163,37 @@ class Block {
         states[tx.to].balance += tx.data.amount
       }
 
-      // update user transaction history
+      // NOTES: update user transaction history
       if (!blockchainTransactions.includes(tx.data.type)) {
-        states[tx.to].outgoingTransactions = [
-          ...(states[tx.to].outgoingTransactions ?? []),
+        const txHash = tx.getHash()
+
+        // NOTES: update sender outgoing transactions
+        if (!states[txSenderAddress]) {
+          const senderState = await stateDB
+            .get(txSenderAddress)
+            .then((data) => JSON.parse(data))
+
+          states[txSenderAddress] = senderState
+        }
+        states[txSenderAddress].outgoingTransactions = [
+          ...(states[txSenderAddress].outgoingTransactions ?? []),
           txHash,
         ]
-        states[tx.from].incomingTransactions = [
+
+        // NOTES: update receiver incoming transactions
+        if (!existedAddresses.includes(tx.to) && !states[tx.to]) {
+          states[tx.to] = {
+            address: tx.to,
+            balance: 0,
+            incomingTransactions: [],
+          }
+        }
+        if (existedAddresses.includes(tx.to) && !states[tx.to]) {
+          states[tx.to] = await stateDB
+            .get(tx.to)
+            .then((data) => JSON.parse(data))
+        }
+        states[tx.to].incomingTransactions = [
           ...(states[tx.from].incomingTransactions ?? []),
           txHash,
         ]
@@ -213,17 +223,6 @@ class Block {
     for (const account of Object.keys(states)) {
       await stateDB.put(account, JSON.stringify(states[account]))
     }
-
-    block.data = block.data.map(
-      (tx) =>
-        new Transaction({
-          data: tx.data,
-          from: tx.from,
-          to: tx.to,
-          signature: tx.signature as string,
-          lastTransactionHash: tx.lastTransactionHash,
-        })
-    )
 
     return true
   }

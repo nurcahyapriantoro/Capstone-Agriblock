@@ -3,7 +3,7 @@ import { TransactionInterface } from "./types"
 import { cryptoHashV2 } from "./crypto-hash"
 import { verifyPublicKey } from "../utils/keypair"
 
-interface TransactionParams extends TransactionInterface {
+export interface TransactionParams extends TransactionInterface {
   signature?: string
 }
 class Transaction {
@@ -38,7 +38,7 @@ class Transaction {
 
   isValid() {
     return (
-      this.signature &&
+      !!this.signature &&
       verifyPublicKey(this.from, this.getHash(), this.signature)
     )
   }

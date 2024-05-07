@@ -3,7 +3,7 @@ import { fork } from "child_process"
 import { ec } from "elliptic"
 
 import Block from "../block"
-import Transaction from "../transaction"
+import Transaction, { type TransactionParams } from "../transaction"
 import SyncQueue from "../core/queue"
 import ProofOfStake from "../consensus/pos"
 import changeState from "../core/state"
@@ -121,6 +121,9 @@ async function startServer(params: Config) {
             transaction = new Transaction(_message.data)
           } catch (err) {
             // If transaction can not be initialized, it's faulty
+            console.log(
+              `\x1b[32mLOG\x1b[0m [${new Date().toISOString()}] Received invalid block.`
+            )
             break
           }
 
@@ -192,9 +195,17 @@ async function startServer(params: Config) {
           let block: Block
 
           try {
-            block = new Block(_message.data)
+            block = new Block({
+              ..._message.data,
+              data: _message.data.data.map(
+                (tx: TransactionParams) => new Transaction(tx)
+              ),
+            })
           } catch (err) {
             // If block fails to be initialized, it's faulty
+            console.log(
+              `\x1b[32mLOG\x1b[0m [${new Date().toISOString()}] Received invalid block.`
+            )
             return
           }
 
@@ -206,7 +217,7 @@ async function startServer(params: Config) {
                 (await verifyBlock(block, chainInfo, stateDB)) // For all others
               ) {
                 const blockNumberStr = block.number.toString()
-                await blockDB.put(blockNumberStr, JSON.stringify(_message.data)) // Add block to chain
+                await blockDB.put(blockNumberStr, JSON.stringify(block)) // Add block to chain
                 await bhashDB.put(block.hash, blockNumberStr) // Assign block number to the matching block hash
 
                 // Assign transaction index and block number to transaction hash
@@ -270,7 +281,12 @@ async function startServer(params: Config) {
           let newBlock: Block
 
           try {
-            newBlock = new Block(_message.data)
+            newBlock = new Block({
+              ..._message.data,
+              data: _message.data.data.map(
+                (tx: TransactionParams) => new Transaction(tx)
+              ),
+            })
           } catch (err) {
             // If block fails to be initialized, it's faulty
             return
@@ -349,6 +365,53 @@ async function startServer(params: Config) {
         case MessageTypeEnum.START_MINING:
           if (chainInfo.transactionPool.length > 0)
             mine(publicKey, genesisKeyPair)
+          break
+
+        case MessageTypeEnum.REQUEST_POOL:
+          const { poolRequestAddress } = _message.data
+
+          const poolRequestNode = connectedNodes.get(poolRequestAddress)
+
+          if (poolRequestNode) {
+            poolRequestNode.socket.send(
+              produceMessage(
+                MessageTypeEnum.SEND_POOL,
+                chainInfo.transactionPool
+              )
+            )
+
+            console.log(
+              `\x1b[32mLOG\x1b[0m [${new Date().toISOString()}] Sent transaction pool to ${poolRequestAddress}.`
+            )
+          }
+          break
+
+        case MessageTypeEnum.SEND_POOL:
+          const txPool = _message.data
+
+          try {
+            const newTxPool: Array<Transaction> = txPool.map(
+              (tx: TransactionParams) => new Transaction(tx)
+            )
+
+            if (newTxPool.length > 0) {
+              if (!newTxPool.every((tx) => tx.isValid()))
+                throw "Invalid transaction pool!"
+
+              chainInfo.transactionPool = newTxPool
+
+              console.log(
+                `\x1b[32mLOG\x1b[0m [${new Date().toISOString()}] Synced ${
+                  newTxPool.length
+                } transactions.`
+              )
+            }
+          } catch (err) {
+            // If tx pool fails to be initialized, it's faulty
+            console.log(
+              `\x1b[32mLOG\x1b[0m [${new Date().toISOString()}] Failed to initialize transaction pool: ${err}`
+            )
+          }
           break
       }
     })
@@ -454,7 +517,13 @@ async function startServer(params: Config) {
             requestAddress: publicKey,
           })
         )
+        node.socket.send(
+          produceMessage(MessageTypeEnum.REQUEST_POOL, {
+            poolRequestAddress: publicKey,
+          })
+        )
       }
+      chainRequestEnabled = false
     }, 5000)
   }
 
@@ -571,7 +640,43 @@ const mine = async (publicKey: string, keyPair: ec.KeyPair) => {
       states[tx.to].balance += tx.data.amount
     }
 
-    // update recipient address data
+    // NOTES: update user transaction history
+    if (!blockchainTransactions.includes(tx.data.type)) {
+      const txHash = tx.getHash()
+
+      // NOTES: update sender outgoing transactions
+      if (!states[txSenderAddress]) {
+        const senderState = await stateDB
+          .get(txSenderAddress)
+          .then((data) => JSON.parse(data))
+
+        states[txSenderAddress] = senderState
+      }
+      states[txSenderAddress].outgoingTransactions = [
+        ...(states[txSenderAddress].outgoingTransactions ?? []),
+        txHash,
+      ]
+
+      // NOTES: update receiver incoming transactions
+      if (!existedAddresses.includes(tx.to) && !states[tx.to]) {
+        states[tx.to] = {
+          address: tx.to,
+          balance: 0,
+          incomingTransactions: [],
+        }
+      }
+      if (existedAddresses.includes(tx.to) && !states[tx.to]) {
+        states[tx.to] = await stateDB
+          .get(tx.to)
+          .then((data) => JSON.parse(data))
+      }
+      states[tx.to].incomingTransactions = [
+        ...(states[tx.from].incomingTransactions ?? []),
+        txHash,
+      ]
+    }
+
+    // add to the list of transactions to mine
     transactionsToMine.push(tx)
   }
 
@@ -613,18 +718,6 @@ const mine = async (publicKey: string, keyPair: ec.KeyPair) => {
           // update the node stake
           if (tx.data.type === TransactionTypeEnum.STAKE)
             await chainInfo.consensus.update(tx.to, tx.data.amount)
-
-          if (blockchainTransactions.includes(tx.data.type)) continue
-
-          // update user transaction history
-          states[tx.to].outgoingTransactions = [
-            ...(states[tx.to].outgoingTransactions ?? []),
-            txHash,
-          ]
-          states[tx.from].incomingTransactions = [
-            ...(states[tx.from].incomingTransactions ?? []),
-            txHash,
-          ]
         }
 
         chainInfo.latestBlock = newBlock // Update latest block cache

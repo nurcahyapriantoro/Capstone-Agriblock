@@ -20,7 +20,7 @@ const validateTransaction = async (
     )
   }
 
-  if (!isAddressExist()) return [false, "Sender does not exist."]
+  if (!(await isAddressExist())) return [false, "Sender does not exist."]
 
   return [true, undefined]
 }
