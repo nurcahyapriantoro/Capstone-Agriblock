@@ -8,6 +8,7 @@ import type { ChainInfo } from "../../types"
 import type {
   CoinStakeInterface,
   CoinTransferInterface,
+  SignTransactionInterface,
   TransactionInterface,
 } from "../validation/transactionSchema"
 import { TransactionTypeEnum } from "../../enum"
@@ -45,7 +46,7 @@ const getTransaction = async (req: Request, res: Response) => {
 
 const signTransaction = async (req: Request, res: Response) => {
   const { privateKey, data, from, to, lastTransactionHash } =
-    req.body as TransactionInterface
+    req.body as SignTransactionInterface
 
   const keyPair = getKeyPair(privateKey)
 
@@ -69,25 +70,29 @@ const signTransaction = async (req: Request, res: Response) => {
 }
 
 const createTransaction = async (req: Request, res: Response) => {
-  const { data, from, to, privateKey, lastTransactionHash } =
+  const { data, from, to, privateKey, lastTransactionHash, signature } =
     req.body as TransactionInterface
-
-  const keyPair = getKeyPair(privateKey)
 
   try {
     const transaction = new Transaction({
       data,
       from,
       to,
+      signature,
       lastTransactionHash,
     })
-    transaction.sign(keyPair)
+
+    if (privateKey) {
+      const keyPair = getKeyPair(privateKey)
+      transaction.sign(keyPair)
+    }
 
     const isValid = await res.locals.transactionHandler(transaction)
 
     if (isValid) {
       return res.status(201).json({
         message: "Transaction created successfully",
+        hash: transaction.getHash(),
       })
     }
   } catch (err) {
@@ -130,6 +135,7 @@ const transferCoin = async (req: Request, res: Response) => {
     if (isValid) {
       return res.status(201).json({
         message: `${amount} coin transfered to ${address}.`,
+        hash: transaction.getHash(),
       })
     }
   } catch (err) {
@@ -163,6 +169,7 @@ const stakeCoin = async (req: Request, res: Response) => {
     if (isValid) {
       return res.status(201).json({
         message: `${amount} coin staked to ${publicKey}`,
+        hash: transaction.getHash(),
       })
     }
   } catch (err) {

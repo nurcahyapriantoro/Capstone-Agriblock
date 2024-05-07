@@ -16,6 +16,7 @@ const generateWallet = async (_req: Request, res: Response) => {
     keyPair.getPublic("hex"),
     JSON.stringify({
       address: keyPair.getPublic("hex"),
+      balance: 0,
     })
   )
 

@@ -5,15 +5,21 @@ const getLastBlock = async (req: Request, res: Response) => {
   const blockKeys = await blockDB.keys().all()
   const lastStoredBlockKey = Math.max(...blockKeys.map((key) => parseInt(key)))
 
-  const lastblock = await blockDB
-    .get(lastStoredBlockKey.toString())
-    .then((data) => JSON.parse(data))
+  try {
+    const lastblock = await blockDB
+      .get(lastStoredBlockKey.toString())
+      .then((data) => JSON.parse(data))
 
-  res.json({
-    data: {
-      block: lastblock,
-    },
-  })
+    res.json({
+      data: {
+        block: lastblock,
+      },
+    })
+  } catch (err) {
+    res.status(500).json({
+      message: "Failed to get last block, please try again in a moment.",
+    })
+  }
 }
 
 const getBlockchainState = async (_req: Request, res: Response) => {
