@@ -8,6 +8,7 @@ import {
   getTransactionPool,
   transferCoin,
   stakeCoin,
+  getTransactionFlow,
 } from "../controller/TransactionController"
 import validate from "../middleware/validation"
 import {
@@ -29,5 +30,6 @@ router.post("/stake", validate(coinStakeSchema), catcher(stakeCoin))
 
 router.get("/pool", catcher(getTransactionPool))
 router.get("/:hash", catcher(getTransaction))
+router.get("/:hash/flow", catcher(getTransactionFlow))
 
 export default router

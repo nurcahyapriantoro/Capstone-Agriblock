@@ -180,6 +180,49 @@ const stakeCoin = async (req: Request, res: Response) => {
     message: "Can't stake coin, please check your balance!",
   })
 }
+
+const getTransactionFlow = async (req: Request, res: Response) => {
+  const { hash } = req.params
+
+  try {
+    const transactionList = await getTransactionByHash(hash)
+
+    res.json({
+      data: transactionList,
+    })
+  } catch (err) {
+    res.status(404).json({
+      message:
+        "Error at generating the transaction flow, please check your data.",
+    })
+  }
+}
+
+const getTransactionByHash = async (
+  hash: string
+): Promise<Array<Transaction>> => {
+  const [blockNumber, txIndex] = await txhashDB
+    .get(String(hash))
+    .then((data) => {
+      const [blockNumber, txIndex] = data.split(" ")
+      return [Number(blockNumber), Number(txIndex)]
+    })
+
+  const block: Block = await blockDB
+    .get(String(blockNumber))
+    .then((data) => JSON.parse(data))
+
+  const transaction: Transaction = block.data[txIndex]
+
+  if (transaction.lastTransactionHash)
+    return [
+      ...(await getTransactionByHash(transaction.lastTransactionHash)),
+      transaction.data,
+    ]
+
+  return [transaction.data]
+}
+
 export {
   getTransaction,
   signTransaction,
@@ -187,4 +230,5 @@ export {
   getTransactionPool,
   transferCoin,
   stakeCoin,
+  getTransactionFlow,
 }
