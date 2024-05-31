@@ -109,7 +109,6 @@ class Block {
     // Get all existing addresses
     const addressesInBlock = block.data.map((tx) => tx.from)
     const existedAddresses = await stateDB.keys().all()
-
     // If senders' address doesn't exist, return false
     if (
       !addressesInBlock.every((address) => existedAddresses.includes(address))
@@ -194,7 +193,7 @@ class Block {
             .then((data) => JSON.parse(data))
         }
         states[tx.to].incomingTransactions = [
-          ...(states[tx.from].incomingTransactions ?? []),
+          ...(states[tx.to].incomingTransactions ?? []),
           txHash,
         ]
       }

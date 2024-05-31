@@ -20,7 +20,7 @@ const generateWallet = async (_req: Request, res: Response) => {
     })
   )
 
-  res.status(200).json({
+  res.status(201).json({
     data: {
       publicKey: keyPair.getPublic("hex"),
       privateKey: keyPair.getPrivate("hex"),

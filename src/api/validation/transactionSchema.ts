@@ -28,17 +28,33 @@ const coinStakeSchema = yup.object({
   amount: yup.number().required(),
 })
 
+const createBenihSchema = yup.object({
+  address: yup.string().required(),
+  data: yup.object().required(),
+})
+
+const purchaseCoinSchema = yup.object({
+  address: yup.string().required(),
+  amount: yup.number().required(),
+})
+
 type TransactionInterface = yup.InferType<typeof transactionSchema>
 type SignTransactionInterface = yup.InferType<typeof singTransactionSchema>
 type CoinTransferInterface = yup.InferType<typeof coinTransferSchema>
 type CoinStakeInterface = yup.InferType<typeof coinStakeSchema>
+type CreateBenihInterface = yup.InferType<typeof createBenihSchema>
+type PurchaseCoinInterface = yup.InferType<typeof purchaseCoinSchema>
 
 export {
   transactionSchema,
   coinTransferSchema,
   coinStakeSchema,
+  createBenihSchema,
+  purchaseCoinSchema,
   SignTransactionInterface,
   TransactionInterface,
   CoinTransferInterface,
   CoinStakeInterface,
+  CreateBenihInterface,
+  PurchaseCoinInterface,
 }

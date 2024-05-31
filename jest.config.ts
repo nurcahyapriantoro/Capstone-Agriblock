@@ -5,6 +5,7 @@ const config: Config.InitialOptions = {
   transform: {
     "^.+\\.tsx?$": "ts-jest",
   },
+  coveragePathIgnorePatterns: ["/src/config/", "/src/blockchain.ts"],
 }
 
 export default config

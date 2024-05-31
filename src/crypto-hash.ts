@@ -1,10 +1,4 @@
-import { createHmac, createHash } from "crypto"
-
-const cryptoHash = (...args: Array<any>) => {
-  const hmac = createHmac("sha256", args.join(" "))
-
-  return hmac.digest("hex")
-}
+import { createHash } from "crypto"
 
 export const cryptoHashV2 = (...args: Array<any>) => {
   const hash = createHash("sha256")
@@ -19,4 +13,4 @@ export const cryptoHashV2 = (...args: Array<any>) => {
   return hash.digest("hex")
 }
 
-export default cryptoHash
+export default cryptoHashV2

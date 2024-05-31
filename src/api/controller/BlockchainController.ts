@@ -1,7 +1,7 @@
 import type { Request, Response } from "express"
 import { blockDB, txhashDB } from "../../helper/level.db.client"
 
-const getLastBlock = async (req: Request, res: Response) => {
+const getLastBlock = async (_req: Request, res: Response) => {
   const blockKeys = await blockDB.keys().all()
   const lastStoredBlockKey = Math.max(...blockKeys.map((key) => parseInt(key)))
 

@@ -4,6 +4,9 @@ import Transaction from "./transaction"
 import { cryptoHashV2 } from "./crypto-hash"
 import { MINT_KEY_PAIR, MINT_PUBLIC_ADDRESS } from "./config"
 
+/**
+ * @deprecated
+ */
 class Blockchain {
   chain: Block[]
   transactions: Array<Transaction>

@@ -1,5 +1,6 @@
 import Block from "../../block"
 import Transaction from "../../transaction"
+import { appConfig } from "../../../src/config"
 
 import { blockDB, txhashDB } from "../../helper/level.db.client"
 import { getKeyPair } from "../../../utils/keypair"
@@ -8,6 +9,8 @@ import type { ChainInfo } from "../../types"
 import type {
   CoinStakeInterface,
   CoinTransferInterface,
+  CreateBenihInterface,
+  PurchaseCoinInterface,
   SignTransactionInterface,
   TransactionInterface,
 } from "../validation/transactionSchema"
@@ -104,7 +107,7 @@ const createTransaction = async (req: Request, res: Response) => {
   })
 }
 
-const getTransactionPool = async (req: Request, res: Response) => {
+const getTransactionPool = async (_req: Request, res: Response) => {
   const chainInfo = res.locals.chainInfo as ChainInfo
 
   res.json({
@@ -134,7 +137,7 @@ const transferCoin = async (req: Request, res: Response) => {
 
     if (isValid) {
       return res.status(201).json({
-        message: `${amount} coin transfered to ${address}.`,
+        message: `${amount} coin transfered to ${address}`,
         hash: transaction.getHash(),
       })
     }
@@ -223,6 +226,67 @@ const getTransactionByHash = async (
   return [transaction.data]
 }
 
+const createBenih = async (req: Request, res: Response) => {
+  const { GENESIS_PRIVATE_KEY } = appConfig
+  const { data, address } = req.body as CreateBenihInterface
+
+  const keyPair = getKeyPair(GENESIS_PRIVATE_KEY)
+
+  try {
+    const transaction = new Transaction({
+      data,
+      from: keyPair.getPublic("hex"),
+      to: address,
+    })
+    transaction.sign(keyPair)
+
+    const isValid = await res.locals.transactionHandler(transaction)
+
+    if (isValid) {
+      return res.status(201).json({
+        message: "Transaction created successfully",
+        hash: transaction.getHash(),
+      })
+    }
+  } catch (err) {
+    res.status(400).json({
+      message: err,
+    })
+  }
+}
+
+const purchaseCoin = async (req: Request, res: Response) => {
+  const { GENESIS_PRIVATE_KEY } = appConfig
+  const { amount, address } = req.body as PurchaseCoinInterface
+
+  const keyPair = getKeyPair(GENESIS_PRIVATE_KEY)
+
+  try {
+    const transaction = new Transaction({
+      from: keyPair.getPublic("hex"),
+      to: address,
+      data: {
+        type: TransactionTypeEnum.COIN_PURCHASE,
+        amount,
+      },
+    })
+    transaction.sign(keyPair)
+
+    const isValid = await res.locals.transactionHandler(transaction)
+
+    if (isValid) {
+      return res.status(201).json({
+        message: `${amount} coin transfered to ${address}`,
+        hash: transaction.getHash(),
+      })
+    }
+  } catch (err) {
+    res.status(400).json({
+      message: err,
+    })
+  }
+}
+
 export {
   getTransaction,
   signTransaction,
@@ -231,4 +295,6 @@ export {
   transferCoin,
   stakeCoin,
   getTransactionFlow,
+  createBenih,
+  purchaseCoin,
 }

@@ -3,16 +3,16 @@ import { generateKeyPair } from "../../utils/keypair"
 const MINT_KEY_PAIR = generateKeyPair()
 const MINT_PUBLIC_ADDRESS = MINT_KEY_PAIR.getPublic("hex")
 const INITIAL_SUPPLY = 1000000
-const MINE_RATE = 1000
+const MINE_RATE = 6000
 const INITIAL_DIFFICULTY = 3
 const MINE_REWARD = 100
 
 const GENESIS_DATA = {
   timestamp: 1,
   lastHash: "----",
-  hash: "f818c7b8df6639e56317cdd4f414154202bfd4e4c0bfba0084ef6ab0a78ad510",
+  hash: "033e0c1d8ace37e628eb8c515a211fa400fa7c17d705acebb2552df401a88dc2",
   difficulty: INITIAL_DIFFICULTY,
-  nonce: 0,
+  nonce: 12,
   data: [],
   number: 1,
 }
