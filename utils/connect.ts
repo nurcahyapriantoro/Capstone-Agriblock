@@ -5,6 +5,7 @@ import type { ConnectedNode, Peer } from "../src/types"
 
 interface Params {
   peer: Peer
+  signature: string
   currentNode: Peer
   connectedNodes: Map<string, ConnectedNode>
 }
@@ -14,8 +15,14 @@ let maxReconnectInterval = 30000 // Maximum reconnect interval in milliseconds
 let reconnectAttempts = 0
 const maxReconnectAttempts = 10
 
-async function connect({ connectedNodes, currentNode, peer }: Params) {
-  const socket = new WebSocket(peer.wsAddress)
+async function connect(params: Params) {
+  const { connectedNodes, currentNode, peer, signature } = params
+  const socket = new WebSocket(peer.wsAddress, {
+    headers: {
+      "x-address": currentNode.publicKey,
+      "x-signature": signature,
+    },
+  })
 
   socket.on("open", () => {
     console.log("sending next message")
@@ -50,8 +57,22 @@ async function connect({ connectedNodes, currentNode, peer }: Params) {
   })
 
   socket.on("error", (err) => {
+    const errorCode = Number(err.message.split(" ").pop())
+
+    // if error code is 403, the connection is rejected
+    if (Number.isInteger(errorCode) && errorCode === 403) {
+      console.log(
+        `\x1b[31mERROR\x1b[0m [${new Date().toISOString()}] Connection rejected from ${
+          peer.publicKey
+        }.`,
+        err
+      )
+
+      return
+    }
+
     // reconnect if error
-    reconnect({ connectedNodes, currentNode, peer })
+    reconnect(params)
 
     console.log(
       `\x1b[31mERROR\x1b[0m [${new Date().toISOString()}] Error when trying to connect to ${

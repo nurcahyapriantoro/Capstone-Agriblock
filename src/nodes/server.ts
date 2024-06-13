@@ -8,9 +8,10 @@ import SyncQueue from "../core/queue"
 import ProofOfStake from "../consensus/pos"
 import changeState from "../core/state"
 import api from "../api"
+import cryptoHashV2 from "../crypto-hash"
 
 import connect from "../../utils/connect"
-import { getKeyPair } from "../../utils/keypair"
+import { getKeyPair, verifyPublicKey } from "../../utils/keypair"
 import {
   MessageTypeEnum,
   TransactionTypeEnum,
@@ -54,6 +55,7 @@ async function startServer(params: Config) {
     ENABLE_API,
     IS_ORDERER_NODE,
     GENESIS_PRIVATE_KEY,
+    ALLOWED_PEERS,
   } = params
 
   const keyPair = getKeyPair(PRIVATE_KEY)
@@ -62,12 +64,32 @@ async function startServer(params: Config) {
 
   const publicKey = keyPair.getPublic("hex")
   const genesisPublicKey = genesisKeyPair.getPublic("hex")
-
+  const signedPubKey = keyPair.sign(cryptoHashV2(publicKey)).toDER("hex")
   let chainRequestEnabled = ENABLE_CHAIN_REQUEST
   let currentSyncBlock = 1
 
   const server = new WebSocket.Server({
     port: APP_PORT,
+
+    verifyClient: async (info, cb) => {
+      const clientAddress = info.req.socket.remoteAddress
+      const peerAddress = info.req.headers["x-address"] as string
+      const signature = info.req.headers["x-signature"] as string
+
+      // Check if the client's address or key is in the allowed list
+      if (
+        peerAddress &&
+        ALLOWED_PEERS.includes(peerAddress) &&
+        verifyPublicKey(peerAddress, cryptoHashV2(peerAddress), signature)
+      ) {
+        cb(true) // Accept the connection
+      } else {
+        console.log(
+          `\x1b[32mLOG\x1b[0m [${new Date().toISOString()}] Connection attempt from unauthorized server at ${clientAddress}.`
+        )
+        cb(false, 403, "Unauthorized server") // Reject the connection
+      }
+    },
   })
 
   process.on("uncaughtException", (err) =>
@@ -109,6 +131,7 @@ async function startServer(params: Config) {
               },
               peer: node,
               connectedNodes,
+              signature: signedPubKey,
             })
           )
           break
@@ -476,6 +499,7 @@ async function startServer(params: Config) {
           wsAddress: MY_ADDRESS,
         },
         connectedNodes,
+        signature: signedPubKey,
       })
     ) // Connect to peers
   } catch (e) {}

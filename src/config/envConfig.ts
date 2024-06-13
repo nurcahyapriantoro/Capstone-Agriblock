@@ -15,6 +15,7 @@ export interface ENV {
   PRIVATE_KEY: string | undefined
   MY_ADDRESS: string | undefined
   PEERS: Array<Peer>
+  ALLOWED_PEERS: Array<string>
   ENABLE_MINING: boolean
   ENABLE_API: boolean
   ENABLE_CHAIN_REQUEST: boolean
@@ -38,6 +39,7 @@ export interface Config {
   APP_PORT: number
   API_PORT: number
   PEERS: Array<Peer>
+  ALLOWED_PEERS: Array<string>
   PRIVATE_KEY: string
   MY_ADDRESS: string // ws address
   ENABLE_MINING: boolean
@@ -60,7 +62,9 @@ export interface Config {
 
 // Loading process.env as ENV interface
 const getConfig = (): ENV => {
-  const getPeers = (data: string): Array<Peer> => {
+  const getPeers = (data?: string): Array<Peer> => {
+    if (!data) return []
+
     try {
       const peers = JSON.parse(data)
       return peers
@@ -69,13 +73,20 @@ const getConfig = (): ENV => {
     }
   }
 
+  const getAllowedPeers = (data?: string): Array<string> => {
+    if (!data) return []
+
+    return data.split(",")
+  }
+
   return {
     NODE_ENV: process.env.NODE_ENV ?? "development",
     APP_PORT: process.env.APP_PORT ? Number(process.env.APP_PORT) : 3000,
     API_PORT: process.env.API_PORT ? Number(process.env.API_PORT) : 5000,
     PRIVATE_KEY: process.env.PRIVATE_KEY,
     MY_ADDRESS: process.env.MY_ADDRESS,
-    PEERS: process.env.PEERS ? getPeers(process.env.PEERS) : [],
+    PEERS: getPeers(process.env.PEERS),
+    ALLOWED_PEERS: getAllowedPeers(process.env.ALLOWED_PEERS),
     ENABLE_CHAIN_REQUEST: process.env.ENABLE_CHAIN_REQUEST === "true",
     ENABLE_API: process.env.ENABLE_API === "true",
     ENABLE_MINING: process.env.ENABLE_MINING === "true",
