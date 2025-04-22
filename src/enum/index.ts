@@ -19,6 +19,92 @@ enum TransactionTypeEnum {
   STAKE = "STAKE",
 }
 
+enum UserRole {
+  FARMER = "FARMER",
+  COLLECTOR = "COLLECTOR",
+  TRADER = "TRADER",
+  RETAILER = "RETAILER",
+  CONSUMER = "CONSUMER"
+}
+
+enum TransactionAction {
+  ADD_PRODUCT = "ADD_PRODUCT",
+  BUY_PRODUCT = "BUY_PRODUCT",
+  SELL_PRODUCT = "SELL_PRODUCT",
+  VIEW_HISTORY = "VIEW_HISTORY"
+}
+
+enum TransactionActionType {
+  CREATE = "CREATE",
+  TRANSFER = "TRANSFER",
+  UPDATE = "UPDATE",
+  INSPECT = "INSPECT",
+  PACKAGE = "PACKAGE",
+  SHIP = "SHIP",
+  RECEIVE = "RECEIVE",
+  SELL = "SELL",
+  DISCARD = "DISCARD",
+  RECALL = "RECALL",
+  VERIFY = "VERIFY",
+  STOCK_IN = "STOCK_IN",
+  STOCK_OUT = "STOCK_OUT",
+  STOCK_ADJUST = "STOCK_ADJUST",
+  PAYMENT = "PAYMENT"
+}
+
+enum ProductStatus {
+  CREATED = "CREATED",
+  TRANSFERRED = "TRANSFERRED",
+  PACKAGED = "PACKAGED",
+  SHIPPED = "SHIPPED",
+  RECEIVED = "RECEIVED",
+  SOLD = "SOLD",
+  DISCARDED = "DISCARDED",
+  RECALLED = "RECALLED",
+  EXPIRED = "EXPIRED",
+  DEFECTIVE = "DEFECTIVE",
+  VERIFIED = "VERIFIED",
+  ACTIVE = "ACTIVE",
+  IN_STOCK = "IN_STOCK",
+  OUT_OF_STOCK = "OUT_OF_STOCK",
+  LOW_STOCK = "LOW_STOCK"
+}
+
+enum RecallReason {
+  QUALITY_ISSUE = "QUALITY_ISSUE",
+  SAFETY_CONCERN = "SAFETY_CONCERN",
+  CONTAMINATION = "CONTAMINATION",
+  MISLABELING = "MISLABELING",
+  PACKAGING_DEFECT = "PACKAGING_DEFECT",
+  EXPIRED = "EXPIRED",
+  REGULATORY_COMPLIANCE = "REGULATORY_COMPLIANCE",
+  OTHER = "OTHER"
+}
+
+enum StockChangeReason {
+  INITIAL_STOCK = "INITIAL_STOCK",
+  PURCHASE = "PURCHASE",
+  SALE = "SALE",
+  TRANSFER_IN = "TRANSFER_IN",
+  TRANSFER_OUT = "TRANSFER_OUT",
+  DAMAGE = "DAMAGE",
+  LOSS = "LOSS",
+  RETURN = "RETURN",
+  ADJUSTMENT = "ADJUSTMENT",
+  EXPIRED = "EXPIRED",
+  RECALL = "RECALL"
+}
+
 const blockchainTransactions = Object.values(TransactionTypeEnum)
 
-export { MessageTypeEnum, TransactionTypeEnum, blockchainTransactions }
+export { 
+  MessageTypeEnum, 
+  TransactionTypeEnum, 
+  UserRole,
+  TransactionAction,
+  TransactionActionType,
+  ProductStatus,
+  RecallReason,
+  StockChangeReason,
+  blockchainTransactions 
+}

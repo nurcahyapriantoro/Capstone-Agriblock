@@ -1,0 +1,232 @@
+import { UserRole } from "../enum";
+import OwnershipTransfer from "./OwnershipTransfer";
+import RoleService from "./RoleService";
+import { TransactionHistoryService } from "./TransactionHistory";
+import { txhashDB } from "../helper/level.db.client";
+
+interface ProductData {
+  id: string;
+  ownerId: string;
+  name: string;
+  description?: string;
+  quantity?: number;
+  price?: number;
+  metadata?: Record<string, any>;
+  createdAt: number;
+  updatedAt: number;
+}
+
+interface ProductTransferParams {
+  productId: string;
+  currentOwnerId: string;
+  newOwnerId: string;
+  role: UserRole;
+  details?: Record<string, any>;
+}
+
+/**
+ * Service for managing products and their ownership
+ */
+class ProductService {
+  /**
+   * Get product by ID
+   * @param productId ID of the product to retrieve
+   * @returns Product data or null if not found
+   */
+  static async getProduct(productId: string): Promise<ProductData | null> {
+    try {
+      // Sekarang kita benar-benar mengambil data dari database
+      try {
+        const productData = await txhashDB.get(`product:${productId}`).then(data => JSON.parse(data));
+        return productData;
+      } catch (err) {
+        console.error("Error retrieving product from database:", err);
+        
+        // Fallback jika data tidak ditemukan
+        return null;
+      }
+    } catch (error) {
+      console.error("Error fetching product:", error);
+      return null;
+    }
+  }
+
+  /**
+   * Validate and execute a product ownership transfer
+   * @param params Parameters for the ownership transfer
+   * @returns Result of the transfer operation
+   */
+  static async transferOwnership(
+    params: ProductTransferParams
+  ): Promise<{ success: boolean; message?: string; transactionId?: string }> {
+    const { productId, currentOwnerId, newOwnerId, role, details } = params;
+
+    // Get product data
+    const productData = await this.getProduct(productId);
+    
+    if (!productData) {
+      return {
+        success: false,
+        message: `Product with ID ${productId} not found.`
+      };
+    }
+
+    // Create an ownership transfer instance
+    const ownershipTransfer = new OwnershipTransfer(
+      productId,
+      currentOwnerId,
+      newOwnerId,
+      role
+    );
+    
+    // Set the product data for validation
+    ownershipTransfer.setProductData(productData);
+    
+    // Execute the transfer
+    const transferResult = await ownershipTransfer.executeTransfer();
+    
+    // If transfer is successful, record it in the transaction history
+    if (transferResult.success) {
+      // Get the roles of both parties
+      const fromRole = await RoleService.getUserRole(currentOwnerId);
+      const toRole = await RoleService.getUserRole(newOwnerId);
+      
+      if (fromRole && toRole) {
+        // Record the transfer in transaction history
+        const historyResult = await TransactionHistoryService.recordProductTransfer(
+          productId,
+          currentOwnerId,
+          fromRole,
+          newOwnerId,
+          toRole,
+          details
+        );
+        
+        if (historyResult.success) {
+          // Update product ownership in database
+          productData.ownerId = newOwnerId;
+          productData.updatedAt = Date.now();
+          
+          // Save updated product data
+          await txhashDB.put(`product:${productId}`, JSON.stringify(productData));
+          
+          return {
+            success: true,
+            message: transferResult.message,
+            transactionId: historyResult.transactionId
+          };
+        }
+      }
+    }
+    
+    return transferResult;
+  }
+  
+  /**
+   * Create a new product with the farmer as the initial owner
+   * @param farmerId ID of the farmer creating the product
+   * @param productData Product data to be created
+   * @returns Result of the product creation
+   */
+  static async createProduct(
+    farmerId: string, 
+    productData: Omit<ProductData, 'id' | 'ownerId' | 'createdAt' | 'updatedAt'>,
+    details?: Record<string, any>
+  ): Promise<{ success: boolean; productId?: string; message?: string; transactionId?: string }> {
+    try {
+      // Verify that the creator is a farmer
+      const farmerRole = await RoleService.getUserRole(farmerId);
+      
+      if (farmerRole !== UserRole.FARMER) {
+        return {
+          success: false,
+          message: "Only farmers can create new products."
+        };
+      }
+      
+      // Generate a unique product ID
+      const productId = `prod-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+      
+      // Create the product
+      const newProduct: ProductData = {
+        id: productId,
+        ownerId: farmerId,
+        ...productData,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      };
+      
+      // Pastikan quantity tidak undefined
+      if (newProduct.quantity === undefined) {
+        if (details && details.initialQuantity) {
+          newProduct.quantity = details.initialQuantity;
+        } else {
+          newProduct.quantity = 0; // Default fallback
+        }
+      }
+      
+      // Simpan produk di database
+      await txhashDB.put(`product:${productId}`, JSON.stringify(newProduct));
+      
+      // Record the product creation in transaction history
+      const productDetails = {
+        name: productData.name,
+        description: productData.description,
+        quantity: newProduct.quantity, // Gunakan nilai quantity yang sudah dipastikan
+        price: productData.price,
+        ...details
+      };
+      
+      const historyResult = await TransactionHistoryService.recordProductCreation(
+        productId,
+        farmerId,
+        productDetails
+      );
+      
+      return {
+        success: true,
+        productId,
+        message: "Product created successfully.",
+        transactionId: historyResult.transactionId
+      };
+    } catch (error) {
+      console.error("Error creating product:", error);
+      return {
+        success: false,
+        message: "Failed to create product due to an error."
+      };
+    }
+  }
+  
+  /**
+   * Get all products owned by a specific user
+   * @param ownerId ID of the product owner
+   * @returns Array of products owned by the user
+   */
+  static async getProductsByOwner(ownerId: string): Promise<ProductData[]> {
+    try {
+      // Implementasi yang lebih baik untuk mendapatkan produk berdasarkan pemilik
+      const products: ProductData[] = [];
+      
+      // Buat fungsi untuk mendapatkan semua kunci produk
+      // Ini hanya simulasi, implementasi sebenarnya tergantung pada database Anda
+      const allKeys = await txhashDB.keys().all();
+      const productKeys = allKeys.filter(key => key.toString().startsWith('product:'));
+      
+      // Iterasi semua produk
+      for (const key of productKeys) {
+        const productData = await txhashDB.get(key).then(data => JSON.parse(data));
+        if (productData.ownerId === ownerId) {
+          products.push(productData);
+        }
+      }
+      
+      return products;
+    } catch (error) {
+      console.error("Error fetching products by owner:", error);
+      return [];
+    }
+  }
+}
+
+export default ProductService; 

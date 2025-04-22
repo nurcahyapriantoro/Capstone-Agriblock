@@ -4,6 +4,11 @@ import BlockRoute from "./BlockRoute"
 import BlockchainRoute from "./BlockchainRoute"
 import TransactionRoute from "./TransactionRoute"
 import UserRoute from "./UserRoute"
+import RoleRoute from "./RoleRoute"
+import ProductRoute from "./ProductRoute"
+import TransactionHistoryRoute from "./TransactionHistoryRoute"
+import ProductManagementRoute from "./ProductManagementRoute"
+import PaymentRoutes from "./paymentRoutes"
 
 const router = express.Router()
 
@@ -18,5 +23,10 @@ router.use("/block", BlockRoute)
 router.use("/blockchain", BlockchainRoute)
 router.use("/transaction", TransactionRoute)
 router.use("/user", UserRoute)
+router.use("/role", RoleRoute)
+router.use("/product", ProductRoute)
+router.use("/history", TransactionHistoryRoute)
+router.use("/product-management", ProductManagementRoute)
+router.use("/payment", PaymentRoutes)
 
 export default router
