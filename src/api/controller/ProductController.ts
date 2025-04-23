@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { UserRole } from "../../enum";
 import ProductService from "../../core/ProductService";
+import { ProductStatus } from "../../enum";
 
 /**
  * Create a new product (only farmers can do this)
@@ -59,7 +60,8 @@ const createProduct = async (req: Request, res: Response) => {
         description,
         quantity: productQuantity,
         price,
-        metadata: productMetadata
+        metadata: productMetadata,
+        status: ProductStatus.ACTIVE
       },
       {
         productName: productName || name,

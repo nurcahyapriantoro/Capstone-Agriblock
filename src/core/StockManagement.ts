@@ -2,7 +2,7 @@ import {
   ProductStatus, 
   StockChangeReason, 
   TransactionActionType, 
-  UserRole 
+  UserRole
 } from "../enum";
 import ProductService from "./ProductService";
 import RoleService from "./RoleService";
@@ -537,4 +537,4 @@ class StockManagement {
   }
 }
 
-export default StockManagement; 
+export default StockManagement;

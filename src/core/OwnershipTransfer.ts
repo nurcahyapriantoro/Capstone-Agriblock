@@ -1,4 +1,4 @@
-import { UserRole } from "../enum";
+import { UserRole, ProductStatus } from "../enum";
 import RoleService from "./RoleService";
 import { txhashDB } from "../helper/level.db.client";
 
@@ -10,7 +10,14 @@ interface TransferResult {
 interface ProductData {
   id: string;
   ownerId: string;
-  // Additional product data fields could be added here
+  status: ProductStatus;
+  name: string;
+  description?: string;
+  quantity?: number;
+  price?: number;
+  metadata?: Record<string, any>;
+  createdAt: number;
+  updatedAt: number;
 }
 
 /**
@@ -62,6 +69,14 @@ class OwnershipTransfer {
       return {
         success: false,
         message: "Current owner does not own this product."
+      };
+    }
+
+    // Verifikasi status produk - Cegah transfer produk yang di-recall
+    if (this.product.status === ProductStatus.RECALLED) {
+      return {
+        success: false,
+        message: "Product has been recalled and cannot be transferred."
       };
     }
 

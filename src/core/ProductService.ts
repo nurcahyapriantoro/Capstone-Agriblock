@@ -3,6 +3,7 @@ import OwnershipTransfer from "./OwnershipTransfer";
 import RoleService from "./RoleService";
 import { TransactionHistoryService } from "./TransactionHistory";
 import { txhashDB } from "../helper/level.db.client";
+import { ProductStatus } from "../enum";
 
 interface ProductData {
   id: string;
@@ -14,6 +15,7 @@ interface ProductData {
   metadata?: Record<string, any>;
   createdAt: number;
   updatedAt: number;
+  status: ProductStatus;
 }
 
 interface ProductTransferParams {
@@ -68,6 +70,14 @@ class ProductService {
       return {
         success: false,
         message: `Product with ID ${productId} not found.`
+      };
+    }
+    
+    // Tambahan: Verifikasi status produk sebelum transfer
+    if (productData.status === ProductStatus.RECALLED) {
+      return {
+        success: false,
+        message: "Product has been recalled and cannot be transferred."
       };
     }
 
@@ -125,7 +135,8 @@ class ProductService {
   /**
    * Create a new product with the farmer as the initial owner
    * @param farmerId ID of the farmer creating the product
-   * @param productData Product data to be created
+   * @param productData Data produk (name, description, quantity, price, metadata, status)
+   * @param details Informasi tambahan yang akan direkam dalam transaksi
    * @returns Result of the product creation
    */
   static async createProduct(
@@ -153,7 +164,8 @@ class ProductService {
         ownerId: farmerId,
         ...productData,
         createdAt: Date.now(),
-        updatedAt: Date.now()
+        updatedAt: Date.now(),
+        status: ProductStatus.ACTIVE
       };
       
       // Pastikan quantity tidak undefined

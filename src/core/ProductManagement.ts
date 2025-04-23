@@ -3,11 +3,26 @@ import { txhashDB } from "../helper/level.db.client";
 import { TransactionHistoryService } from "./TransactionHistory";
 import ProductService from "./ProductService";
 import RoleService from "./RoleService";
+import { updateProductStatus as utilsUpdateProductStatus } from "./updateProductStatus";
 
 interface ProductUpdateResult {
   success: boolean;
   message?: string;
   transactionId?: string;
+}
+
+// Tambahkan interface ProductData untuk konsistensi dengan ProductService
+interface ProductData {
+  id: string;
+  ownerId: string;
+  name: string;
+  description?: string;
+  quantity?: number;
+  price?: number;
+  metadata?: Record<string, any>;
+  createdAt: number;
+  updatedAt: number;
+  status: ProductStatus;
 }
 
 interface ProductValidationCriteria {
@@ -106,8 +121,18 @@ class ProductManagement {
       }
 
       // Update product status in the database/blockchain
-      // In a real implementation, this would update the product record
-      // For example: await txhashDB.put(`product:${this.productId}`, JSON.stringify({...product, status: newStatus}));
+      try {
+        // Update the product status in the database
+        product.status = newStatus;
+        product.updatedAt = Date.now();
+        await txhashDB.put(`product:${this.productId}`, JSON.stringify(product));
+      } catch (error) {
+        console.error("Error updating product status in database:", error);
+        return {
+          success: false,
+          message: "Failed to update product status in database."
+        };
+      }
       
       // Record the status update in transaction history
       const historyResult = await TransactionHistoryService.recordProductStatusUpdate(
@@ -164,6 +189,14 @@ class ProductManagement {
         };
       }
 
+      // Periksa apakah produk sudah di-recall sebelumnya
+      if (product.status === ProductStatus.RECALLED) {
+        return {
+          success: false,
+          message: "This product has already been recalled."
+        };
+      }
+
       // Validate permissions - only the original creator (FARMER) or current owner can recall
       const isFarmer = this.userRole === UserRole.FARMER;
       const isOwner = product.ownerId === this.userId;
@@ -199,12 +232,32 @@ class ProductManagement {
         reason,
         recallDetails
       );
-
-      return {
-        success: true,
-        message: `Product successfully recalled due to ${reason}.`,
-        transactionId: historyResult.transactionId
-      };
+      
+      if (historyResult.success) {
+        // Update product status di database blockchain
+        try {
+          // Gunakan fungsi updateProductStatus dari utils (lebih konsisten)
+          const updated = await utilsUpdateProductStatus(this.productId, ProductStatus.RECALLED);
+          
+          if (!updated) {
+            console.error(`Warning: Failed to update product status in database, but transaction recorded`);
+          }
+        } catch (err) {
+          console.error(`Error updating product status in database: `, err);
+          // Lanjutkan proses meskipun ada error, karena transaksi recall sudah terekam di blockchain
+        }
+        
+        return {
+          success: true,
+          transactionId: historyResult.transactionId,
+          message: `Product successfully recalled due to ${reason}.`
+        };
+      } else {
+        return {
+          success: false,
+          message: "Failed to record product recall in the transaction history."
+        };
+      }
     } catch (error) {
       console.error("Error recalling product:", error);
       return {
@@ -337,7 +390,7 @@ class ProductManagement {
    * @returns Result of validation checks
    */
   private checkProductAgainstCriteria(
-    product: any,
+    product: ProductData,
     criteria: ProductValidationCriteria
   ): { passes: boolean; issues: string[] } {
     const issues: string[] = [];
@@ -345,8 +398,8 @@ class ProductManagement {
     // In a real implementation, these would be thorough checks against product data
     
     // Check expiration date if provided
-    if (criteria.expirationDate && product.expirationDate) {
-      const productExpDate = new Date(product.expirationDate);
+    if (criteria.expirationDate && product.metadata?.expirationDate) {
+      const productExpDate = new Date(product.metadata.expirationDate);
       const criteriaExpDate = criteria.expirationDate;
       
       if (productExpDate < criteriaExpDate) {
@@ -355,25 +408,25 @@ class ProductManagement {
     }
     
     // Check quality threshold if provided
-    if (criteria.qualityThreshold !== undefined && product.qualityScore !== undefined) {
-      if (product.qualityScore < criteria.qualityThreshold) {
-        issues.push(`Product quality score (${product.qualityScore}) is below threshold (${criteria.qualityThreshold})`);
+    if (criteria.qualityThreshold !== undefined && product.metadata?.qualityScore !== undefined) {
+      if (product.metadata.qualityScore < criteria.qualityThreshold) {
+        issues.push(`Product quality score (${product.metadata.qualityScore}) is below threshold (${criteria.qualityThreshold})`);
       }
     }
     
     // Check safety standards if provided
-    if (criteria.safetyStandards && product.safetyCompliance) {
+    if (criteria.safetyStandards && product.metadata?.safetyCompliance) {
       for (const standard of criteria.safetyStandards) {
-        if (!product.safetyCompliance.includes(standard)) {
+        if (!product.metadata.safetyCompliance.includes(standard)) {
           issues.push(`Product does not meet safety standard: ${standard}`);
         }
       }
     }
     
     // Check required certifications if provided
-    if (criteria.requiredCertifications && product.certifications) {
+    if (criteria.requiredCertifications && product.metadata?.certifications) {
       for (const cert of criteria.requiredCertifications) {
-        if (!product.certifications.includes(cert)) {
+        if (!product.metadata.certifications.includes(cert)) {
           issues.push(`Product is missing required certification: ${cert}`);
         }
       }

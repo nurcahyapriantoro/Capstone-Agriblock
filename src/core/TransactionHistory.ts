@@ -74,11 +74,22 @@ class TransactionHistory {
         details: this.details
       };
 
-      // In a real implementation, this would store the transaction in the blockchain
-      // Example: await txhashDB.put(`transaction:${transactionId}`, JSON.stringify(record));
+      // Store the transaction in the blockchain database
+      await txhashDB.put(`transaction:${transactionId}`, JSON.stringify(record));
       
-      // For now, let's log the transaction (this would be replaced with blockchain storage)
-      console.log("Recording transaction:", record);
+      // Also store a reference by user IDs for faster querying
+      if (this.fromUserId) {
+        await txhashDB.put(`user:${this.fromUserId}:${transactionId}`, JSON.stringify({ transactionId }));
+      }
+      
+      if (this.toUserId && this.toUserId !== this.fromUserId) {
+        await txhashDB.put(`user:${this.toUserId}:${transactionId}`, JSON.stringify({ transactionId }));
+      }
+      
+      // Also store a reference by product ID for faster querying
+      await txhashDB.put(`product:${this.productId}:transaction:${transactionId}`, JSON.stringify({ transactionId }));
+      
+      console.log("Transaction recorded:", record);
 
       return {
         success: true,
@@ -107,17 +118,29 @@ class TransactionHistory {
     transactionHash: string
   ): Promise<{ success: boolean; message?: string }> {
     try {
-      // In a real implementation, this would update the transaction record in the database
       // 1. Fetch the existing record
-      // 2. Update it with blockchain details
-      // 3. Save it back
+      const recordKey = `transaction:${transactionId}`;
+      const recordJson = await txhashDB.get(recordKey);
       
-      // Example:
-      // const recordJson = await txhashDB.get(`transaction:${transactionId}`);
-      // const record = JSON.parse(recordJson);
-      // record.blockHash = blockHash;
-      // record.transactionHash = transactionHash;
-      // await txhashDB.put(`transaction:${transactionId}`, JSON.stringify(record));
+      if (!recordJson) {
+        return {
+          success: false,
+          message: `Transaction with ID ${transactionId} not found`
+        };
+      }
+      
+      // 2. Update it with blockchain details
+      const record = JSON.parse(recordJson);
+      record.blockHash = blockHash;
+      record.transactionHash = transactionHash;
+      
+      // 3. Save it back
+      await txhashDB.put(recordKey, JSON.stringify(record));
+      
+      // 4. Add a cross-reference by transaction hash for future lookups
+      if (transactionHash) {
+        await txhashDB.put(`txhash:${transactionHash}`, transactionId);
+      }
       
       console.log(`Updated transaction ${transactionId} with block hash ${blockHash} and tx hash ${transactionHash}`);
       
@@ -480,99 +503,95 @@ class TransactionHistoryService {
     productId: string
   ): Promise<TransactionRecord[]> {
     try {
-      // In a real implementation, this would query the blockchain or database
-      // for all transactions related to the product
-      // This is a placeholder implementation
+      if (!productId) {
+        console.error("Invalid productId parameter");
+        return [];
+      }
+
+      // Get all transaction keys from the blockchain database
+      let allKeys: string[] = [];
+      try {
+        allKeys = await txhashDB.keys().all();
+      } catch (err) {
+        console.error("Error fetching keys from database:", err);
+        return [];
+      }
       
-      // Example: Query all transactions with the product ID
-      // const allKeys = await txhashDB.keys().all();
-      // const transactionKeys = allKeys.filter(key => key.startsWith('transaction:'));
-      // const transactions = await Promise.all(
-      //   transactionKeys.map(async key => {
-      //     const data = await txhashDB.get(key);
-      //     return JSON.parse(data);
-      //   })
-      // );
-      // return transactions.filter(txn => txn.productId === productId)
-      //   .sort((a, b) => a.timestamp - b.timestamp);
+      if (allKeys.length === 0) {
+        console.log(`No transaction records found in the database`);
+        return [];
+      }
       
-      // Placeholder implementation - this would be replaced with actual data fetching
-      const mockHistory: TransactionRecord[] = [
-        {
-          id: `txn-${Date.now() - 5000000}-1`,
-          productId,
-          fromUserId: "FARM123",
-          fromRole: UserRole.FARMER,
-          toUserId: "FARM123",
-          toRole: UserRole.FARMER,
-          actionType: TransactionActionType.CREATE,
-          productStatus: ProductStatus.CREATED,
-          timestamp: Date.now() - 5000000,
-          details: { location: "Farm A", quantity: 100 }
-        },
-        {
-          id: `txn-${Date.now() - 4000000}-2`,
-          productId,
-          fromUserId: "FARM123",
-          fromRole: UserRole.FARMER,
-          toUserId: "COLL456",
-          toRole: UserRole.COLLECTOR,
-          actionType: TransactionActionType.TRANSFER,
-          productStatus: ProductStatus.TRANSFERRED,
-          timestamp: Date.now() - 4000000,
-          details: { location: "Collection Point B", price: 500 }
-        },
-        {
-          id: `txn-${Date.now() - 3900000}-3`,
-          productId,
-          fromUserId: "COLL456",
-          fromRole: UserRole.COLLECTOR,
-          toUserId: "FARM123",
-          toRole: UserRole.FARMER,
-          actionType: TransactionActionType.PAYMENT,
-          productStatus: ProductStatus.ACTIVE,
-          timestamp: Date.now() - 3900000,
-          details: { amount: 500, paymentType: "PRODUCT_PURCHASE", description: "Payment for product purchase" }
-        },
-        {
-          id: `txn-${Date.now() - 3000000}-4`,
-          productId,
-          fromUserId: "COLL456",
-          fromRole: UserRole.COLLECTOR,
-          toUserId: "COLL456",
-          toRole: UserRole.COLLECTOR,
-          actionType: TransactionActionType.PACKAGE,
-          productStatus: ProductStatus.PACKAGED,
-          timestamp: Date.now() - 3000000,
-          details: { packageType: "Carton", units: 10 }
-        },
-        {
-          id: `txn-${Date.now() - 2000000}-5`,
-          productId,
-          fromUserId: "COLL456",
-          fromRole: UserRole.COLLECTOR,
-          toUserId: "TRAD789",
-          toRole: UserRole.TRADER,
-          actionType: TransactionActionType.TRANSFER,
-          productStatus: ProductStatus.TRANSFERRED,
-          timestamp: Date.now() - 2000000,
-          details: { location: "Trading Hub C", price: 700 }
-        },
-        {
-          id: `txn-${Date.now() - 1900000}-6`,
-          productId,
-          fromUserId: "TRAD789",
-          fromRole: UserRole.TRADER,
-          toUserId: "COLL456",
-          toRole: UserRole.COLLECTOR,
-          actionType: TransactionActionType.PAYMENT,
-          productStatus: ProductStatus.ACTIVE,
-          timestamp: Date.now() - 1900000,
-          details: { amount: 700, paymentType: "PRODUCT_PURCHASE", description: "Payment for product purchase" }
+      // Filter keys related to transactions for this product
+      const transactionKeys = allKeys.filter(key => 
+        (key.startsWith('transaction:') && key.includes(productId)) || 
+        key.startsWith(`product:${productId}:transaction:`)
+      );
+      
+      if (transactionKeys.length === 0) {
+        console.log(`No transaction records found for product: ${productId}`);
+        return [];
+      }
+      
+      console.log(`Found ${transactionKeys.length} potential transaction records for product: ${productId}`);
+      
+      // Get all transaction data
+      const allTransactions: TransactionRecord[] = [];
+      const processedIds = new Set<string>();
+      
+      for (const key of transactionKeys) {
+        try {
+          let transactionId: string;
+          let transactionData: string;
+          
+          if (key.startsWith('product:')) {
+            // This is a reference key, get the actual transaction ID
+            const refData = await txhashDB.get(key);
+            if (!refData) continue;
+            
+            const reference = JSON.parse(refData);
+            transactionId = reference.transactionId;
+            
+            // Now get the actual transaction data
+            transactionData = await txhashDB.get(`transaction:${transactionId}`);
+            if (!transactionData) continue;
+          } else {
+            // This is the actual transaction data
+            transactionId = key.replace('transaction:', '');
+            transactionData = await txhashDB.get(key);
+            if (!transactionData) continue;
+          }
+          
+          // Skip if we already processed this transaction
+          if (processedIds.has(transactionId)) continue;
+          processedIds.add(transactionId);
+          
+          let record: any;
+          try {
+            record = JSON.parse(transactionData);
+          } catch (parseErr) {
+            // If the data is not valid JSON, skip this record
+            continue;
+          }
+          
+          // Ensure the data has the correct structure and is related to the productId
+          if (record && 
+              typeof record === 'object' &&
+              record.productId === productId) {
+            allTransactions.push(record as TransactionRecord);
+          }
+        } catch (err) {
+          // Skip this record if there's an error
+          continue;
         }
-      ];
+      }
       
-      return mockHistory;
+      console.log(`Found ${allTransactions.length} transactions for product: ${productId}`);
+      
+      // Sort by timestamp in ascending order (oldest first)
+      return allTransactions.sort((a, b) => 
+        (a.timestamp || 0) - (b.timestamp || 0)
+      );
     } catch (error) {
       console.error("Error fetching product transaction history:", error);
       return [];
@@ -582,77 +601,88 @@ class TransactionHistoryService {
   /**
    * Get all transactions by a specific user (either as sender or receiver)
    * @param userId ID of the user
+   * @param limit Optional limit on the number of results
    * @returns Array of transaction records involving the user
    */
   static async getUserTransactionHistory(
-    userId: string
+    userId: string,
+    limit?: number
   ): Promise<TransactionRecord[]> {
     try {
-      // In a real implementation, this would query the blockchain or database
-      // for all transactions related to the user
-      // This is a placeholder implementation
+      // Validate userId parameter
+      if (!userId) {
+        console.error("Invalid userId parameter");
+        return [];
+      }
+
+      // Get all transaction keys from the blockchain database
+      let allKeys: string[] = [];
+      try {
+        allKeys = await txhashDB.keys().all();
+      } catch (err) {
+        console.error("Error fetching keys from database:", err);
+        return [];
+      }
       
-      // Example: Query all transactions that involve the user
-      // const allTransactions = await this.getAllTransactions();
-      // return allTransactions.filter(
-      //   txn => txn.fromUserId === userId || txn.toUserId === userId
-      // ).sort((a, b) => b.timestamp - a.timestamp);
+      if (allKeys.length === 0) {
+        console.log(`No transaction records found in the database`);
+        return [];
+      }
       
-      // Placeholder implementation - this would be replaced with actual data fetching
-      const mockHistory: TransactionRecord[] = [
-        {
-          id: `txn-${Date.now() - 5000000}-1`,
-          productId: `prod-${Date.now() - 6000000}-1`,
-          fromUserId: userId,
-          fromRole: UserRole.FARMER,
-          toUserId: userId,
-          toRole: UserRole.FARMER,
-          actionType: TransactionActionType.CREATE,
-          productStatus: ProductStatus.CREATED,
-          timestamp: Date.now() - 5000000,
-          details: { location: "Farm A", quantity: 100 }
-        },
-        {
-          id: `txn-${Date.now() - 4000000}-2`,
-          productId: `prod-${Date.now() - 6000000}-1`,
-          fromUserId: userId,
-          fromRole: UserRole.FARMER,
-          toUserId: "COLL456",
-          toRole: UserRole.COLLECTOR,
-          actionType: TransactionActionType.TRANSFER,
-          productStatus: ProductStatus.TRANSFERRED,
-          timestamp: Date.now() - 4000000,
-          details: { location: "Collection Point B", price: 500 }
-        },
-        {
-          id: `txn-${Date.now() - 3900000}-3`,
-          productId: `prod-${Date.now() - 6000000}-1`,
-          fromUserId: "COLL456",
-          fromRole: UserRole.COLLECTOR,
-          toUserId: userId,
-          toRole: UserRole.FARMER,
-          actionType: TransactionActionType.PAYMENT,
-          productStatus: ProductStatus.ACTIVE,
-          timestamp: Date.now() - 3900000,
-          details: { amount: 500, paymentType: "PRODUCT_PURCHASE", description: "Payment for product purchase" }
-        },
-        {
-          id: `txn-${Date.now() - 3000000}-4`,
-          productId: `prod-${Date.now() - 5500000}-2`,
-          fromUserId: userId,
-          fromRole: UserRole.FARMER,
-          toUserId: userId,
-          toRole: UserRole.FARMER,
-          actionType: TransactionActionType.CREATE,
-          productStatus: ProductStatus.CREATED,
-          timestamp: Date.now() - 3000000,
-          details: { location: "Farm A", quantity: 50 }
+      // Filter keys related to transactions
+      const transactionKeys = allKeys.filter(key => 
+        key.startsWith('transaction:') || key.includes(userId)
+      );
+      
+      if (transactionKeys.length === 0) {
+        console.log(`No transaction records matching filter criteria`);
+        return [];
+      }
+      
+      console.log(`Found ${transactionKeys.length} potential transaction records to check`);
+      
+      // Get all transaction data
+      const allTransactions: TransactionRecord[] = [];
+      
+      for (const key of transactionKeys) {
+        try {
+          const data = await txhashDB.get(key);
+          if (!data) continue;
+          
+          let record: any;
+          try {
+            record = JSON.parse(data);
+          } catch (parseErr) {
+            // If the data is not valid JSON, skip this record
+            continue;
+          }
+          
+          // Ensure the data has the correct structure and is related to the userId
+          if (record && 
+              typeof record === 'object' &&
+              (record.fromUserId === userId || record.toUserId === userId)) {
+            allTransactions.push(record as TransactionRecord);
+          }
+        } catch (err) {
+          // Skip this record if there's an error
+          continue;
         }
-      ];
+      }
       
-      return mockHistory;
+      console.log(`Found ${allTransactions.length} transactions for userId: ${userId}`);
+      
+      // Sort by timestamp in descending order (newest first)
+      const sortedTransactions = allTransactions.sort((a, b) => 
+        (b.timestamp || 0) - (a.timestamp || 0)
+      );
+      
+      // Apply limit if specified and valid
+      const limitValue = typeof limit === 'number' && limit > 0 ? limit : undefined;
+      return limitValue ? sortedTransactions.slice(0, limitValue) : sortedTransactions;
     } catch (error) {
       console.error("Error fetching user transaction history:", error);
+      
+      // If no transactions are found or there's an error, return empty array
       return [];
     }
   }
@@ -687,51 +717,34 @@ class TransactionHistoryService {
    */
   static async getRecalledProducts(): Promise<TransactionRecord[]> {
     try {
-      // In a real implementation, this would query the blockchain or database
-      // for all transactions with RECALL action type
-      // This is a placeholder implementation
+      // Dapatkan semua kunci dari database blockchain
+      const allKeys = await txhashDB.keys().all();
       
-      // Example: Query all transactions with recall action
-      // const allTransactions = await this.getAllTransactions();
-      // return allTransactions.filter(
-      //   txn => txn.actionType === TransactionActionType.RECALL
-      // ).sort((a, b) => b.timestamp - a.timestamp);
+      // Filter kunci yang terkait dengan transaksi
+      const transactionKeys = allKeys.filter(key => key.startsWith('transaction:'));
       
-      // Placeholder implementation - this would be replaced with actual data fetching
-      const mockHistory: TransactionRecord[] = [
-        {
-          id: `txn-${Date.now() - 3000000}-1`,
-          productId: `prod-${Date.now() - 5000000}-1`,
-          fromUserId: "FARM123",
-          fromRole: UserRole.FARMER,
-          toUserId: "FARM123", 
-          toRole: UserRole.FARMER,
-          actionType: TransactionActionType.RECALL,
-          productStatus: ProductStatus.RECALLED,
-          timestamp: Date.now() - 3000000,
-          details: { 
-            recallReason: RecallReason.QUALITY_ISSUE,
-            description: "Product failed quality inspection"
+      // Ambil semua data transaksi
+      const transactions: TransactionRecord[] = [];
+      
+      for (const key of transactionKeys) {
+        try {
+          const data = await txhashDB.get(key);
+          const record = JSON.parse(data);
+          
+          // Pastikan data memiliki struktur yang benar
+          if (record && 
+              record.actionType === TransactionActionType.RECALL && 
+              record.productStatus === ProductStatus.RECALLED) {
+            transactions.push(record);
           }
-        },
-        {
-          id: `txn-${Date.now() - 2000000}-2`,
-          productId: `prod-${Date.now() - 4000000}-2`,
-          fromUserId: "COLL456",
-          fromRole: UserRole.COLLECTOR,
-          toUserId: "COLL456",
-          toRole: UserRole.COLLECTOR,
-          actionType: TransactionActionType.RECALL,
-          productStatus: ProductStatus.RECALLED,
-          timestamp: Date.now() - 2000000,
-          details: { 
-            recallReason: RecallReason.SAFETY_CONCERN,
-            description: "Potential contamination detected"
-          }
+        } catch (err) {
+          console.error(`Error parsing transaction from key ${key}:`, err);
+          // Lanjutkan ke transaksi berikutnya jika ada error dengan satu transaksi
         }
-      ];
+      }
       
-      return mockHistory;
+      // Urutkan berdasarkan timestamp terbaru
+      return transactions.sort((a, b) => b.timestamp - a.timestamp);
     } catch (error) {
       console.error("Error fetching recalled products:", error);
       return [];
@@ -757,6 +770,68 @@ class TransactionHistoryService {
       return history.length > 0 ? history[0] : null;
     } catch (error) {
       console.error("Error fetching latest product status:", error);
+      return null;
+    }
+  }
+
+  /**
+   * Get a specific transaction by ID
+   * @param transactionId ID of the transaction
+   * @returns Transaction record or null if not found
+   */
+  static async getTransaction(
+    transactionId: string
+  ): Promise<TransactionRecord | null> {
+    try {
+      // Validate transaction ID parameter
+      if (!transactionId) {
+        console.error("Invalid transactionId parameter");
+        return null;
+      }
+
+      try {
+        // Try to get the transaction directly using its ID
+        const transactionData = await txhashDB.get(`transaction:${transactionId}`);
+        
+        if (transactionData) {
+          const record = JSON.parse(transactionData);
+          return record as TransactionRecord;
+        }
+      } catch (err) {
+        // If direct lookup fails, try searching through all transactions
+        console.log(`Transaction not found directly with ID: ${transactionId}, performing search...`);
+      }
+
+      // If direct lookup fails, search through all transaction keys
+      const allKeys = await txhashDB.keys().all();
+      
+      // Filter keys related to transactions
+      const transactionKeys = allKeys.filter(key => 
+        key.startsWith('transaction:')
+      );
+      
+      for (const key of transactionKeys) {
+        try {
+          const data = await txhashDB.get(key);
+          if (!data) continue;
+          
+          const record = JSON.parse(data);
+          
+          // Check if this is the transaction we're looking for
+          if (record && record.id === transactionId) {
+            return record as TransactionRecord;
+          }
+        } catch (err) {
+          // Skip this record if there's an error
+          continue;
+        }
+      }
+      
+      // If we get here, the transaction was not found
+      console.log(`Transaction with ID ${transactionId} not found`);
+      return null;
+    } catch (error) {
+      console.error("Error fetching transaction:", error);
       return null;
     }
   }

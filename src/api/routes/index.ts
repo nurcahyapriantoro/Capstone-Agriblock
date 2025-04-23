@@ -9,6 +9,7 @@ import ProductRoute from "./ProductRoute"
 import TransactionHistoryRoute from "./TransactionHistoryRoute"
 import ProductManagementRoute from "./ProductManagementRoute"
 import PaymentRoutes from "./paymentRoutes"
+import StockManagementRoutes from "./stockManagementRoutes"
 
 const router = express.Router()
 
@@ -28,5 +29,6 @@ router.use("/product", ProductRoute)
 router.use("/history", TransactionHistoryRoute)
 router.use("/product-management", ProductManagementRoute)
 router.use("/payment", PaymentRoutes)
+router.use("/stock", StockManagementRoutes)
 
 export default router

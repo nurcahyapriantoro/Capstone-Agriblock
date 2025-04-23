@@ -1,7 +1,7 @@
 import express from "express";
 import { 
   getProductTransactionHistory,
-  getUserTransactionHistory 
+  getUserTransactionHistory
 } from "../controller/TransactionHistoryController";
 
 const router = express.Router();

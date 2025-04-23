@@ -39,6 +39,7 @@ const getProductTransactionHistory = async (req: Request, res: Response) => {
 const getUserTransactionHistory = async (req: Request, res: Response) => {
   try {
     const { userId } = req.params;
+    const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
 
     if (!userId) {
       return res.status(400).json({
@@ -47,7 +48,7 @@ const getUserTransactionHistory = async (req: Request, res: Response) => {
       });
     }
 
-    const transactions = await TransactionHistoryService.getUserTransactionHistory(userId);
+    const transactions = await TransactionHistoryService.getUserTransactionHistory(userId, limit);
 
     return res.status(200).json({
       success: true,

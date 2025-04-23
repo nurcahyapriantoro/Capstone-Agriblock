@@ -58,4 +58,4 @@ router.get(
   StockManagementController.checkLowStock
 );
 
-export default router; 
+export default router;
