@@ -1,404 +1,265 @@
 import { Request, Response } from 'express';
+import { container, injectable, inject } from 'tsyringe';
 import StockManagement from '../../core/StockManagement';
 import { StockChangeReason, UserRole } from '../../enum';
 import { isAuthenticated } from '../../middleware/auth';
 import RoleService from '../../core/RoleService';
 
-/**
- * Controller for managing product stock operations
- */
-export default class StockManagementController {
+// Register StockManagement service in the container
+container.register<StockManagement>("StockManagement", {
+  useClass: StockManagement
+});
+
+@injectable()
+class StockManagementController {
+  private stockManagementInstances: Map<string, StockManagement> = new Map();
+
   /**
-   * Increase stock quantity (stock-in)
+   * Handle stock-in operations
    */
-  static async stockIn(req: Request, res: Response) {
+  async stockIn(req: Request, res: Response): Promise<void> {
     try {
-      const { productId, quantity, reason, details } = req.body;
+      const { productId, quantity, reason } = req.body;
       const userId = req.user?.id;
 
       if (!userId) {
-        return res.status(401).json({
-          success: false,
-          message: "User authentication required"
-        });
+        res.status(401).json({ message: 'User not authenticated' });
+        return;
       }
 
-      if (!productId || !quantity || !reason) {
-        return res.status(400).json({
-          success: false,
-          message: "Missing required fields: productId, quantity, and reason are required"
-        });
+      if (!productId || !quantity || quantity <= 0) {
+        res.status(400).json({ message: 'Invalid product or quantity' });
+        return;
       }
 
-      // Validate quantity
-      if (isNaN(Number(quantity)) || Number(quantity) <= 0) {
-        return res.status(400).json({
-          success: false,
-          message: "Quantity must be a positive number"
-        });
-      }
-
-      // Validate reason
-      if (!Object.values(StockChangeReason).includes(reason as StockChangeReason)) {
-        return res.status(400).json({
-          success: false,
-          message: "Invalid stock change reason"
-        });
-      }
-
-      // Initialize stock management
+      // Create or get StockManagement instance for this product
       const stockManager = new StockManagement(productId, userId);
-      const initialized = await stockManager.initialize();
+      await stockManager.initialize();
 
-      if (!initialized) {
-        return res.status(500).json({
-          success: false,
-          message: "Failed to initialize stock management"
-        });
-      }
-
-      // Perform stock in operation
       const result = await stockManager.stockIn(
-        Number(quantity),
-        reason as StockChangeReason,
-        details
+        quantity,
+        reason || StockChangeReason.PURCHASE
       );
 
       if (!result.success) {
-        return res.status(400).json(result);
+        res.status(400).json({ message: result.message });
+        return;
       }
 
-      return res.status(200).json(result);
-    } catch (error) {
-      console.error("Error in stockIn controller:", error);
-      return res.status(500).json({
-        success: false,
-        message: "Internal server error"
+      res.status(200).json({ 
+        message: 'Stock added successfully',
+        currentStock: result.currentStock,
+        transactionId: result.transactionId
       });
+    } catch (error: any) {
+      console.error('Error in stockIn controller:', error);
+      res.status(500).json({ message: error.message || 'Error processing stock-in' });
     }
   }
 
   /**
-   * Decrease stock quantity (stock-out)
+   * Handle stock-out operations
    */
-  static async stockOut(req: Request, res: Response) {
+  async stockOut(req: Request, res: Response): Promise<void> {
     try {
-      const { productId, quantity, reason, details } = req.body;
+      const { productId, quantity, reason } = req.body;
       const userId = req.user?.id;
 
       if (!userId) {
-        return res.status(401).json({
-          success: false,
-          message: "User authentication required"
-        });
+        res.status(401).json({ message: 'User not authenticated' });
+        return;
       }
 
-      if (!productId || !quantity || !reason) {
-        return res.status(400).json({
-          success: false,
-          message: "Missing required fields: productId, quantity, and reason are required"
-        });
+      if (!productId || !quantity || quantity <= 0) {
+        res.status(400).json({ message: 'Invalid product or quantity' });
+        return;
       }
 
-      // Validate quantity
-      if (isNaN(Number(quantity)) || Number(quantity) <= 0) {
-        return res.status(400).json({
-          success: false,
-          message: "Quantity must be a positive number"
-        });
-      }
-
-      // Validate reason
-      if (!Object.values(StockChangeReason).includes(reason as StockChangeReason)) {
-        return res.status(400).json({
-          success: false,
-          message: "Invalid stock change reason"
-        });
-      }
-
-      // Initialize stock management
+      // Create or get StockManagement instance for this product
       const stockManager = new StockManagement(productId, userId);
-      const initialized = await stockManager.initialize();
+      await stockManager.initialize();
 
-      if (!initialized) {
-        return res.status(500).json({
-          success: false,
-          message: "Failed to initialize stock management"
-        });
-      }
-
-      // Perform stock out operation
       const result = await stockManager.stockOut(
-        Number(quantity),
-        reason as StockChangeReason,
-        details
+        quantity,
+        reason || StockChangeReason.SALE
       );
 
       if (!result.success) {
-        return res.status(400).json(result);
+        res.status(400).json({ message: result.message });
+        return;
       }
 
-      return res.status(200).json(result);
-    } catch (error) {
-      console.error("Error in stockOut controller:", error);
-      return res.status(500).json({
-        success: false,
-        message: "Internal server error"
+      res.status(200).json({ 
+        message: 'Stock removed successfully',
+        currentStock: result.currentStock,
+        transactionId: result.transactionId
       });
+    } catch (error: any) {
+      console.error('Error in stockOut controller:', error);
+      res.status(500).json({ message: error.message || 'Error processing stock-out' });
     }
   }
 
   /**
-   * Adjust stock to specific quantity
+   * Handle stock adjustment operations
    */
-  static async adjustStock(req: Request, res: Response) {
+  async adjustStock(req: Request, res: Response): Promise<void> {
     try {
-      const { productId, newQuantity, reason, details } = req.body;
+      const { productId, newQuantity, reason } = req.body;
       const userId = req.user?.id;
 
       if (!userId) {
-        return res.status(401).json({
-          success: false,
-          message: "User authentication required"
-        });
+        res.status(401).json({ message: 'User not authenticated' });
+        return;
       }
 
-      if (!productId || newQuantity === undefined || !reason) {
-        return res.status(400).json({
-          success: false,
-          message: "Missing required fields: productId, newQuantity, and reason are required"
-        });
+      if (!productId || newQuantity === undefined || newQuantity < 0) {
+        res.status(400).json({ message: 'Invalid product or quantity' });
+        return;
       }
 
-      // Validate quantity
-      if (isNaN(Number(newQuantity)) || Number(newQuantity) < 0) {
-        return res.status(400).json({
-          success: false,
-          message: "New quantity must be a non-negative number"
-        });
-      }
-
-      // Validate reason
-      if (!Object.values(StockChangeReason).includes(reason as StockChangeReason)) {
-        return res.status(400).json({
-          success: false,
-          message: "Invalid stock change reason"
-        });
-      }
-
-      // Initialize stock management
+      // Create or get StockManagement instance for this product
       const stockManager = new StockManagement(productId, userId);
-      const initialized = await stockManager.initialize();
+      await stockManager.initialize();
 
-      if (!initialized) {
-        return res.status(500).json({
-          success: false,
-          message: "Failed to initialize stock management"
-        });
-      }
-
-      // Perform stock adjustment operation
       const result = await stockManager.adjustStock(
-        Number(newQuantity),
-        reason as StockChangeReason,
-        details
+        newQuantity,
+        reason || StockChangeReason.ADJUSTMENT
       );
 
       if (!result.success) {
-        return res.status(400).json(result);
+        res.status(400).json({ message: result.message });
+        return;
       }
 
-      return res.status(200).json(result);
-    } catch (error) {
-      console.error("Error in adjustStock controller:", error);
-      return res.status(500).json({
-        success: false,
-        message: "Internal server error"
+      res.status(200).json({ 
+        message: 'Stock adjusted successfully',
+        currentStock: result.currentStock,
+        transactionId: result.transactionId
       });
+    } catch (error: any) {
+      console.error('Error in adjustStock controller:', error);
+      res.status(500).json({ message: error.message || 'Error adjusting stock' });
     }
   }
 
   /**
-   * Transfer stock between users
+   * Handle stock transfer operations
    */
-  static async transferStock(req: Request, res: Response) {
+  async transferStock(req: Request, res: Response): Promise<void> {
     try {
-      const { productId, toUserId, quantity, details } = req.body;
+      const { productId, toUserId, quantity, reason } = req.body;
       const fromUserId = req.user?.id;
 
       if (!fromUserId) {
-        return res.status(401).json({
-          success: false,
-          message: "User authentication required"
-        });
+        res.status(401).json({ message: 'User not authenticated' });
+        return;
       }
 
-      if (!productId || !toUserId || !quantity) {
-        return res.status(400).json({
-          success: false,
-          message: "Missing required fields: productId, toUserId, and quantity are required"
-        });
+      if (!productId || !toUserId || !quantity || quantity <= 0) {
+        res.status(400).json({ message: 'Invalid transfer parameters' });
+        return;
       }
 
-      // Validate quantity
-      if (isNaN(Number(quantity)) || Number(quantity) <= 0) {
-        return res.status(400).json({
-          success: false,
-          message: "Quantity must be a positive number"
-        });
+      if (fromUserId === toUserId) {
+        res.status(400).json({ message: 'Cannot transfer to yourself' });
+        return;
       }
 
-      // Get from user role
+      // Get user roles
       const fromRole = await RoleService.getUserRole(fromUserId);
-      if (!fromRole) {
-        return res.status(400).json({
-          success: false,
-          message: "Sender role not found"
-        });
-      }
-
-      // Get to user role
       const toRole = await RoleService.getUserRole(toUserId);
-      if (!toRole) {
-        return res.status(400).json({
-          success: false,
-          message: "Recipient role not found"
-        });
+      
+      if (!fromRole || !toRole) {
+        res.status(400).json({ message: 'User role not found' });
+        return;
       }
 
-      // Perform stock transfer
       const result = await StockManagement.transferStock(
         productId,
         fromUserId,
-        fromRole,
+        fromRole as UserRole,
         toUserId,
-        toRole,
-        Number(quantity),
-        details
+        toRole as UserRole,
+        quantity,
+        { reason: reason || StockChangeReason.TRANSFER_OUT }
       );
 
       if (!result.success) {
-        return res.status(400).json(result);
+        res.status(400).json({ message: result.message });
+        return;
       }
 
-      return res.status(200).json(result);
-    } catch (error) {
-      console.error("Error in transferStock controller:", error);
-      return res.status(500).json({
-        success: false,
-        message: "Internal server error"
+      res.status(200).json({ 
+        message: 'Stock transferred successfully',
+        transactionId: result.transactionId
       });
+    } catch (error: any) {
+      console.error('Error in transferStock controller:', error);
+      res.status(500).json({ message: error.message || 'Error transferring stock' });
     }
   }
 
   /**
-   * Get current stock level
+   * Get current stock for a product
    */
-  static async getCurrentStock(req: Request, res: Response) {
+  async getCurrentStock(req: Request, res: Response): Promise<void> {
     try {
       const { productId } = req.params;
-      const userId = req.user?.id;
-
-      if (!userId) {
-        return res.status(401).json({
-          success: false,
-          message: "User authentication required"
-        });
-      }
+      const userId = req.user?.id || '';
 
       if (!productId) {
-        return res.status(400).json({
-          success: false,
-          message: "Product ID is required"
-        });
+        res.status(400).json({ message: 'Product ID is required' });
+        return;
       }
-
-      // Initialize stock management
-      const stockManager = new StockManagement(productId, userId);
       
-      // Get current stock
-      const currentStock = await stockManager.getCurrentStock();
-
-      return res.status(200).json({
-        success: true,
-        productId,
-        currentStock
-      });
-    } catch (error) {
-      console.error("Error in getCurrentStock controller:", error);
-      return res.status(500).json({
-        success: false,
-        message: "Internal server error"
-      });
+      const stockManager = new StockManagement(productId, userId);
+      const stock = await stockManager.getCurrentStock();
+      
+      res.status(200).json({ productId, stock });
+    } catch (error: any) {
+      console.error('Error getting current stock:', error);
+      res.status(500).json({ message: error.message || 'Error retrieving stock information' });
     }
   }
 
   /**
-   * Get stock transaction history
+   * Get stock history for a product
    */
-  static async getStockHistory(req: Request, res: Response) {
+  async getStockHistory(req: Request, res: Response): Promise<void> {
     try {
       const { productId } = req.params;
-      const userId = req.user?.id;
-
-      if (!userId) {
-        return res.status(401).json({
-          success: false,
-          message: "User authentication required"
-        });
-      }
+      const userId = req.user?.id || '';
 
       if (!productId) {
-        return res.status(400).json({
-          success: false,
-          message: "Product ID is required"
-        });
+        res.status(400).json({ message: 'Product ID is required' });
+        return;
       }
 
-      // Initialize stock management
       const stockManager = new StockManagement(productId, userId);
-      
-      // Get stock history
       const history = await stockManager.getStockHistory();
-
-      return res.status(200).json({
-        success: true,
-        productId,
-        history
-      });
-    } catch (error) {
-      console.error("Error in getStockHistory controller:", error);
-      return res.status(500).json({
-        success: false,
-        message: "Internal server error"
-      });
+      
+      res.status(200).json(history);
+    } catch (error: any) {
+      console.error('Error getting stock history:', error);
+      res.status(500).json({ message: error.message || 'Error retrieving stock history' });
     }
   }
 
   /**
    * Check if product has low stock
    */
-  static async checkLowStock(req: Request, res: Response) {
+  async checkLowStock(req: Request, res: Response): Promise<void> {
     try {
       const { productId } = req.params;
       const { threshold } = req.query;
-      const userId = req.user?.id;
-
-      if (!userId) {
-        return res.status(401).json({
-          success: false,
-          message: "User authentication required"
-        });
-      }
+      const userId = req.user?.id || '';
 
       if (!productId) {
-        return res.status(400).json({
-          success: false,
-          message: "Product ID is required"
-        });
+        res.status(400).json({ message: 'Product ID is required' });
+        return;
       }
 
-      // Initialize stock management
       const stockManager = new StockManagement(productId, userId);
       
       // Set custom threshold if provided
@@ -406,22 +267,20 @@ export default class StockManagementController {
         stockManager.setLowStockThreshold(Number(threshold));
       }
 
-      // Check if stock is low
       const isLowStock = await stockManager.isLowStock();
       const currentStock = await stockManager.getCurrentStock();
-
-      return res.status(200).json({
-        success: true,
-        productId,
+      
+      res.status(200).json({ 
+        productId, 
+        isLowStock, 
         currentStock,
-        isLowStock
+        threshold: threshold ? Number(threshold) : undefined
       });
-    } catch (error) {
-      console.error("Error in checkLowStock controller:", error);
-      return res.status(500).json({
-        success: false,
-        message: "Internal server error"
-      });
+    } catch (error: any) {
+      console.error('Error checking low stock:', error);
+      res.status(500).json({ message: error.message || 'Error checking stock levels' });
     }
   }
-} 
+}
+
+export default StockManagementController; 

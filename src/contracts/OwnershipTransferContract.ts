@@ -1,6 +1,7 @@
 import { SmartContract } from './ISmartContract';
 import { Level } from 'level';
-import { UserRole, ProductStatus } from '../enum';
+import { UserRole, ProductStatus, TransactionActionType } from '../enum';
+import { ContractRegistry } from './ContractRegistry';
 
 /**
  * Product data for ownership management
@@ -371,18 +372,20 @@ export class OwnershipTransferContract extends SmartContract {
     params: any,
     sender: string | null
   ): Promise<any> {
-    // In a real implementation, this would use the contract registry
-    // Here we'll simulate the contract call
-    console.log(`Calling ${contractId}.${method} with params:`, params);
+    const registry = ContractRegistry.getInstance();
     
-    // Placeholder implementation - in a real system this would delegate to the contract registry
-    return {
-      success: true,
-      message: `Contract call to ${contractId}.${method} simulated`,
-      // Add mock data based on the method called
-      role: params.userId ? UserRole.FARMER : undefined,
-      transactionId: method.includes('record') ? `txn-${Date.now()}` : undefined
-    };
+    try {
+      if (callType === 'execute' && sender) {
+        return await registry.executeContract(contractId, method, params, sender);
+      } else if (callType === 'query') {
+        return await registry.queryContract(contractId, method, params);
+      } else {
+        throw new Error('Invalid contract call type or missing sender for execute');
+      }
+    } catch (error) {
+      console.error(`Error calling contract ${contractId}.${method}:`, error);
+      throw new Error(`Contract call to ${contractId}.${method} failed: ${(error as Error).message}`);
+    }
   }
   
   /**

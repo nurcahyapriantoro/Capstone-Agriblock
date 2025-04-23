@@ -24,7 +24,11 @@ enum UserRole {
   COLLECTOR = "COLLECTOR",
   TRADER = "TRADER",
   RETAILER = "RETAILER",
-  CONSUMER = "CONSUMER"
+  CONSUMER = "CONSUMER",
+  ADMIN = "ADMIN",
+  PRODUCER = "PRODUCER",
+  INSPECTOR = "INSPECTOR",
+  MEDIATOR = "MEDIATOR"
 }
 
 enum TransactionAction {
@@ -38,6 +42,7 @@ enum TransactionActionType {
   CREATE = "CREATE",
   TRANSFER = "TRANSFER",
   UPDATE = "UPDATE",
+  UPDATE_STATUS = "UPDATE_STATUS",
   INSPECT = "INSPECT",
   PACKAGE = "PACKAGE",
   SHIP = "SHIP",
@@ -49,7 +54,12 @@ enum TransactionActionType {
   STOCK_IN = "STOCK_IN",
   STOCK_OUT = "STOCK_OUT",
   STOCK_ADJUST = "STOCK_ADJUST",
-  PAYMENT = "PAYMENT"
+  STOCK_ADD = "STOCK_ADD",
+  STOCK_REMOVE = "STOCK_REMOVE",
+  STOCK_ADJUSTMENT = "STOCK_ADJUSTMENT",
+  PAYMENT = "PAYMENT",
+  DISPUTE = "DISPUTE",
+  RESOLVE_DISPUTE = "RESOLVE_DISPUTE"
 }
 
 enum ProductStatus {
@@ -64,10 +74,13 @@ enum ProductStatus {
   EXPIRED = "EXPIRED",
   DEFECTIVE = "DEFECTIVE",
   VERIFIED = "VERIFIED",
+  VERIFICATION_FAILED = "VERIFICATION_FAILED",
   ACTIVE = "ACTIVE",
   IN_STOCK = "IN_STOCK",
   OUT_OF_STOCK = "OUT_OF_STOCK",
-  LOW_STOCK = "LOW_STOCK"
+  LOW_STOCK = "LOW_STOCK",
+  PAID = "PAID",
+  DISPUTED = "DISPUTED"
 }
 
 enum RecallReason {
@@ -95,6 +108,32 @@ enum StockChangeReason {
   RECALL = "RECALL"
 }
 
+enum DisputeStatus {
+  PENDING = "PENDING",
+  UNDER_REVIEW = "UNDER_REVIEW",
+  RESOLVED = "RESOLVED",
+  REJECTED = "REJECTED",
+  CANCELLED = "CANCELLED"
+}
+
+enum DisputeType {
+  QUALITY = "QUALITY",
+  QUANTITY = "QUANTITY",
+  DELIVERY = "DELIVERY",
+  PRICE = "PRICE",
+  PAYMENT = "PAYMENT",
+  OTHER = "OTHER"
+}
+
+enum DisputeResolution {
+  REFUND = "REFUND",
+  REPLACEMENT = "REPLACEMENT",
+  PARTIAL_REFUND = "PARTIAL_REFUND",
+  CREDIT = "CREDIT",
+  COMPENSATION = "COMPENSATION",
+  NO_ACTION = "NO_ACTION"
+}
+
 const blockchainTransactions = Object.values(TransactionTypeEnum)
 
 export { 
@@ -106,5 +145,8 @@ export {
   ProductStatus,
   RecallReason,
   StockChangeReason,
+  DisputeStatus,
+  DisputeType,
+  DisputeResolution,
   blockchainTransactions 
 }

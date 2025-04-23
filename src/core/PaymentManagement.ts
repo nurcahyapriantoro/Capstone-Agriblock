@@ -28,7 +28,7 @@ interface PaymentData {
   details?: Record<string, any>;
 }
 
-enum PaymentStatus {
+export enum PaymentStatus {
   PENDING = "PENDING",
   COMPLETED = "COMPLETED",
   FAILED = "FAILED",
@@ -36,7 +36,7 @@ enum PaymentStatus {
   CANCELED = "CANCELED"
 }
 
-enum PaymentType {
+export enum PaymentType {
   PRODUCT_PURCHASE = "PRODUCT_PURCHASE",
   SERVICE_FEE = "SERVICE_FEE",
   ADVANCE_PAYMENT = "ADVANCE_PAYMENT",
@@ -48,7 +48,7 @@ enum PaymentType {
 /**
  * Class for managing payment transactions in the supply chain
  */
-class PaymentManagement {
+export class PaymentManagement {
   private productId: string;
   private fromUserId: string;
   private fromRole?: UserRole;
@@ -345,6 +345,4 @@ class PaymentManagement {
 
     return { valid: true };
   }
-}
-
-export { PaymentManagement, PaymentData, PaymentStatus, PaymentType, PaymentResult }; 
+} 

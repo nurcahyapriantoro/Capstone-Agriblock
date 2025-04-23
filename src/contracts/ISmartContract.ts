@@ -55,10 +55,10 @@ export interface ISmartContract {
  * This provides the common structure and functionality for our contracts
  */
 export abstract class SmartContract implements ISmartContract {
-  private stateDB: Level<string, string>;
-  private contractId: string;
-  private contractName: string;
-  private contractVersion: string;
+  private _stateDB: Level<string, string>;
+  private _contractId: string;
+  private _contractName: string;
+  private _contractVersion: string;
   
   constructor(
     contractId: string,
@@ -66,10 +66,30 @@ export abstract class SmartContract implements ISmartContract {
     contractVersion: string,
     stateDB: Level<string, string>
   ) {
-    this.contractId = contractId;
-    this.contractName = contractName;
-    this.contractVersion = contractVersion;
-    this.stateDB = stateDB;
+    this._contractId = contractId;
+    this._contractName = contractName;
+    this._contractVersion = contractVersion;
+    this._stateDB = stateDB;
+  }
+  
+  // Getter untuk state database
+  get stateDB(): Level<string, string> {
+    return this._stateDB;
+  }
+  
+  // Getter untuk kontrak ID
+  get contractId(): string {
+    return this._contractId;
+  }
+  
+  // Getter untuk nama kontrak
+  get name(): string {
+    return this._contractName;
+  }
+  
+  // Getter untuk versi kontrak
+  get version(): string {
+    return this._contractVersion;
   }
   
   /**
@@ -98,8 +118,8 @@ export abstract class SmartContract implements ISmartContract {
   public getContractInfo(): { contractId: string; name: string; version: string } {
     return {
       contractId: this.contractId,
-      name: this.contractName,
-      version: this.contractVersion,
+      name: this.name,
+      version: this.version,
     };
   }
   
@@ -179,7 +199,7 @@ export abstract class SmartContract implements ISmartContract {
   protected async emitEvent(eventName: string, eventData: any): Promise<void> {
     const event = {
       contractId: this.contractId,
-      contractName: this.contractName,
+      contractName: this.name,
       eventName,
       eventData,
       timestamp: Date.now(),

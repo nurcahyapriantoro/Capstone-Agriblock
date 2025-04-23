@@ -9,6 +9,7 @@ import ProofOfStake from "../consensus/pos"
 import changeState from "../core/state"
 import api from "../api"
 import cryptoHashV2 from "../crypto-hash"
+import ContractRegistryService from "../core/ContractRegistryService"
 
 import connect from "../../utils/connect"
 import { getKeyPair, verifyPublicKey } from "../../utils/keypair"
@@ -57,6 +58,14 @@ async function startServer(params: Config) {
     GENESIS_PRIVATE_KEY,
     ALLOWED_PEERS,
   } = params
+
+  // Initialize the ContractRegistry early
+  try {
+    await ContractRegistryService.initializeContracts();
+    console.log(`\x1b[32mLOG\x1b[0m [${new Date().toISOString()}] Smart contracts initialized successfully`);
+  } catch (error) {
+    console.error(`\x1b[31mERROR\x1b[0m [${new Date().toISOString()}] Failed to initialize smart contracts:`, error);
+  }
 
   const keyPair = getKeyPair(PRIVATE_KEY)
   const genesisKeyPair = getKeyPair(GENESIS_PRIVATE_KEY)

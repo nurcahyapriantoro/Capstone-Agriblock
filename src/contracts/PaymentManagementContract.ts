@@ -1,6 +1,7 @@
 import { SmartContract } from './ISmartContract';
 import { Level } from 'level';
 import { UserRole, TransactionActionType, ProductStatus } from '../enum';
+import { ContractRegistry } from './ContractRegistry';
 
 /**
  * Payment data structure
@@ -669,7 +670,7 @@ export class PaymentManagementContract extends SmartContract {
     
     if (!isSender && !isReceiver) {
       // Check if user is admin (we would normally check this against RoleValidation)
-      const isAdmin = await this.callContract(
+      const adminResult = await this.callContract(
         this.roleValidationContractId,
         'query',
         'validateAccess',
@@ -677,7 +678,7 @@ export class PaymentManagementContract extends SmartContract {
         null
       );
       
-      if (!isAdmin.success) {
+      if (!adminResult.success) {
         return {
           success: false,
           message: "Only the escrow sender, receiver, or an admin can refund the escrow."
@@ -784,7 +785,7 @@ export class PaymentManagementContract extends SmartContract {
     // Usually only the receiver (who got the money) can issue a refund
     if (payment.toUserId !== userId) {
       // Check if user is admin (we would normally check this against RoleValidation)
-      const isAdmin = await this.callContract(
+      const adminResult = await this.callContract(
         this.roleValidationContractId,
         'query',
         'validateAccess',
@@ -792,7 +793,7 @@ export class PaymentManagementContract extends SmartContract {
         null
       );
       
-      if (!isAdmin.success) {
+      if (!adminResult.success) {
         return {
           success: false,
           message: "Only the payment receiver or an admin can issue a refund."
@@ -947,7 +948,7 @@ export class PaymentManagementContract extends SmartContract {
     return {
       success: true,
       escrow,
-      payment
+      payment: payment || undefined
     };
   }
   
@@ -987,22 +988,20 @@ export class PaymentManagementContract extends SmartContract {
     params: any,
     sender: string | null
   ): Promise<any> {
-    // In a real implementation, this would use the contract registry
-    // Here we'll simulate the contract call
-    console.log(`Calling ${contractId}.${method} with params:`, params);
+    const registry = ContractRegistry.getInstance();
     
-    // Placeholder implementation - in a real system this would delegate to the contract registry
-    return {
-      success: true,
-      message: `Contract call to ${contractId}.${method} simulated`,
-      // Add mock data based on the method called
-      role: params.userId ? UserRole.FARMER : undefined,
-      transactionId: method.includes('record') ? `txn-${Date.now()}` : undefined,
-      product: params.productId ? {
-        id: params.productId,
-        ownerId: params.userId || 'unknown'
-      } : undefined
-    };
+    try {
+      if (callType === 'execute' && sender) {
+        return await registry.executeContract(contractId, method, params, sender);
+      } else if (callType === 'query') {
+        return await registry.queryContract(contractId, method, params);
+      } else {
+        throw new Error('Invalid contract call type or missing sender for execute');
+      }
+    } catch (error) {
+      console.error(`Error calling contract ${contractId}.${method}:`, error);
+      throw new Error(`Contract call to ${contractId}.${method} failed: ${(error as Error).message}`);
+    }
   }
   
   /**

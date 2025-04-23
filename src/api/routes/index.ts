@@ -8,8 +8,8 @@ import RoleRoute from "./RoleRoute"
 import ProductRoute from "./ProductRoute"
 import TransactionHistoryRoute from "./TransactionHistoryRoute"
 import ProductManagementRoute from "./ProductManagementRoute"
-import PaymentRoutes from "./paymentRoutes"
-import StockManagementRoutes from "./stockManagementRoutes"
+import PaymentRoutes from "./PaymentRoutes"
+import DisputeRoute from "./DisputeRoute"
 
 const router = express.Router()
 
@@ -29,6 +29,6 @@ router.use("/product", ProductRoute)
 router.use("/history", TransactionHistoryRoute)
 router.use("/product-management", ProductManagementRoute)
 router.use("/payment", PaymentRoutes)
-router.use("/stock", StockManagementRoutes)
+router.use("/disputes", DisputeRoute)
 
 export default router
