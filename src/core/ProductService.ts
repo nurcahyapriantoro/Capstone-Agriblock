@@ -37,14 +37,28 @@ class ProductService {
    */
   static async getProduct(productId: string): Promise<ProductData | null> {
     try {
-      // Sekarang kita benar-benar mengambil data dari database
+      // Retrieve data from the database
       try {
-        const productData = await txhashDB.get(`product:${productId}`).then(data => JSON.parse(data));
+        const data = await txhashDB.get(`product:${productId}`);
+        
+        // Check if data is already an object or needs parsing
+        let productData;
+        if (typeof data === 'string') {
+          try {
+            productData = JSON.parse(data);
+          } catch (parseError) {
+            console.error(`Error parsing product data for ID ${productId}:`, parseError);
+            return null;
+          }
+        } else {
+          // Data is already an object
+          productData = data;
+        }
+        
         return productData;
       } catch (err) {
         console.error("Error retrieving product from database:", err);
-        
-        // Fallback jika data tidak ditemukan
+        // Fallback if data not found
         return null;
       }
     } catch (error) {
@@ -117,6 +131,9 @@ class ProductService {
           productData.ownerId = newOwnerId;
           productData.updatedAt = Date.now();
           
+          // Update product status to TRANSFERRED
+          productData.status = ProductStatus.TRANSFERRED;
+          
           // Save updated product data
           await txhashDB.put(`product:${productId}`, JSON.stringify(productData));
           
@@ -165,7 +182,7 @@ class ProductService {
         ...productData,
         createdAt: Date.now(),
         updatedAt: Date.now(),
-        status: ProductStatus.ACTIVE
+        status: ProductStatus.CREATED  // Mengubah dari ACTIVE menjadi CREATED
       };
       
       // Pastikan quantity tidak undefined
@@ -227,9 +244,30 @@ class ProductService {
       
       // Iterasi semua produk
       for (const key of productKeys) {
-        const productData = await txhashDB.get(key).then(data => JSON.parse(data));
-        if (productData.ownerId === ownerId) {
-          products.push(productData);
+        try {
+          const data = await txhashDB.get(key);
+          
+          // Check if data is already an object or needs parsing
+          let productData;
+          if (typeof data === 'string') {
+            try {
+              productData = JSON.parse(data);
+            } catch (parseError) {
+              console.error(`Error parsing product data for key ${key}:`, parseError);
+              continue; // Skip this product and move to the next
+            }
+          } else {
+            // Data is already an object
+            productData = data;
+          }
+          
+          // Now check if it matches the owner
+          if (productData && productData.ownerId === ownerId) {
+            products.push(productData);
+          }
+        } catch (productError) {
+          console.error(`Error retrieving product for key ${key}:`, productError);
+          // Continue to the next product
         }
       }
       
@@ -239,6 +277,53 @@ class ProductService {
       return [];
     }
   }
+
+  /**
+   * Get all products 
+   * @returns Array of all products
+   */
+  static async getAllProducts(): Promise<ProductData[]> {
+    try {
+      // Get all product keys
+      const allKeys = await txhashDB.keys().all();
+      const productKeys = allKeys.filter(key => key.toString().startsWith('product:'));
+      
+      // Get all products with proper type checking
+      const products: ProductData[] = [];
+      
+      for (const key of productKeys) {
+        try {
+          const data = await txhashDB.get(key);
+          
+          // Check if data is already an object or needs parsing
+          let productData;
+          if (typeof data === 'string') {
+            try {
+              productData = JSON.parse(data);
+            } catch (parseError) {
+              console.error(`Error parsing product data for key ${key}:`, parseError);
+              continue; // Skip this product
+            }
+          } else {
+            // Data is already an object
+            productData = data;
+          }
+          
+          if (productData) {
+            products.push(productData);
+          }
+        } catch (productError) {
+          console.error(`Error retrieving product for key ${key}:`, productError);
+          // Continue to the next product
+        }
+      }
+      
+      return products;
+    } catch (error) {
+      console.error("Error fetching all products:", error);
+      return [];
+    }
+  }
 }
 
-export default ProductService; 
+export default ProductService;

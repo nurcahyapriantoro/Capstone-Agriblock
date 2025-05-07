@@ -24,11 +24,7 @@ enum UserRole {
   COLLECTOR = "COLLECTOR",
   TRADER = "TRADER",
   RETAILER = "RETAILER",
-  CONSUMER = "CONSUMER",
-  ADMIN = "ADMIN",
-  PRODUCER = "PRODUCER",
-  INSPECTOR = "INSPECTOR",
-  MEDIATOR = "MEDIATOR"
+  CONSUMER = "CONSUMER"
 }
 
 enum TransactionAction {
@@ -57,9 +53,7 @@ enum TransactionActionType {
   STOCK_ADD = "STOCK_ADD",
   STOCK_REMOVE = "STOCK_REMOVE",
   STOCK_ADJUSTMENT = "STOCK_ADJUSTMENT",
-  PAYMENT = "PAYMENT",
-  DISPUTE = "DISPUTE",
-  RESOLVE_DISPUTE = "RESOLVE_DISPUTE"
+  PAYMENT = "PAYMENT"
 }
 
 enum ProductStatus {
@@ -75,12 +69,10 @@ enum ProductStatus {
   DEFECTIVE = "DEFECTIVE",
   VERIFIED = "VERIFIED",
   VERIFICATION_FAILED = "VERIFICATION_FAILED",
-  ACTIVE = "ACTIVE",
   IN_STOCK = "IN_STOCK",
   OUT_OF_STOCK = "OUT_OF_STOCK",
   LOW_STOCK = "LOW_STOCK",
-  PAID = "PAID",
-  DISPUTED = "DISPUTED"
+  PAID = "PAID"
 }
 
 enum RecallReason {
@@ -108,32 +100,6 @@ enum StockChangeReason {
   RECALL = "RECALL"
 }
 
-enum DisputeStatus {
-  PENDING = "PENDING",
-  UNDER_REVIEW = "UNDER_REVIEW",
-  RESOLVED = "RESOLVED",
-  REJECTED = "REJECTED",
-  CANCELLED = "CANCELLED"
-}
-
-enum DisputeType {
-  QUALITY = "QUALITY",
-  QUANTITY = "QUANTITY",
-  DELIVERY = "DELIVERY",
-  PRICE = "PRICE",
-  PAYMENT = "PAYMENT",
-  OTHER = "OTHER"
-}
-
-enum DisputeResolution {
-  REFUND = "REFUND",
-  REPLACEMENT = "REPLACEMENT",
-  PARTIAL_REFUND = "PARTIAL_REFUND",
-  CREDIT = "CREDIT",
-  COMPENSATION = "COMPENSATION",
-  NO_ACTION = "NO_ACTION"
-}
-
 const blockchainTransactions = Object.values(TransactionTypeEnum)
 
 export { 
@@ -145,8 +111,5 @@ export {
   ProductStatus,
   RecallReason,
   StockChangeReason,
-  DisputeStatus,
-  DisputeType,
-  DisputeResolution,
   blockchainTransactions 
 }

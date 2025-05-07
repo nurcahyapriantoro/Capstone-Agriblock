@@ -1,6 +1,9 @@
 import type { Request, Response } from "express";
 import { UserRole, TransactionAction } from "../../enum";
-import RoleService from "../../core/RoleService";
+import { ContractRegistry } from "../../contracts/ContractRegistry";
+
+// ID kontrak untuk validasi peran
+const contractId = 'role-validation-v1';
 
 /**
  * Validate if a user can perform a specific action
@@ -24,9 +27,13 @@ const validateUserAction = async (req: Request, res: Response) => {
       });
     }
 
-    const validationResult = await RoleService.validateUserAction(
-      userId,
-      action as TransactionAction
+    // Panggil smart contract melalui ContractRegistry
+    const registry = ContractRegistry.getInstance();
+    const validationResult = await registry.executeContract(
+      contractId,
+      'validateUserAction',
+      { userId, action },
+      req.body.sender || 'system'  // Gunakan sender jika disediakan, atau default ke 'system'
     );
 
     if (validationResult.isValid) {
@@ -71,10 +78,13 @@ const validateTransaction = async (req: Request, res: Response) => {
       });
     }
 
-    const validationResult = await RoleService.validateTransaction(
-      fromUserId,
-      toUserId,
-      action as TransactionAction
+    // Panggil smart contract melalui ContractRegistry
+    const registry = ContractRegistry.getInstance();
+    const validationResult = await registry.executeContract(
+      contractId,
+      'validateTransaction',
+      { fromUserId, toUserId, action },
+      req.body.sender || 'system'  // Gunakan sender jika disediakan, atau default ke 'system'
     );
 
     if (validationResult.isValid) {
@@ -111,14 +121,20 @@ const getUserRole = async (req: Request, res: Response) => {
       });
     }
 
-    const role = await RoleService.getUserRole(userId);
+    // Panggil smart contract melalui ContractRegistry
+    const registry = ContractRegistry.getInstance();
+    const result = await registry.queryContract(
+      contractId,
+      'getUserRole',
+      { userId }
+    );
 
-    if (role) {
+    if (result.success) {
       return res.status(200).json({
         success: true,
         data: {
           userId,
-          role
+          role: result.role
         }
       });
     } else {

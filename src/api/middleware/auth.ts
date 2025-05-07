@@ -1,10 +1,12 @@
-// Di dalam fungsi isAuthenticated, tambahkan log debug
-// Extract and verify token
-const token = authHeader.split(' ')[1];
-const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default_secret_key');
+import { Request, Response, NextFunction } from 'express';
+import jwt from 'jsonwebtoken';
+import { jwtConfig } from '../../config';
 
-// Log untuk debugging (bisa dihapus nanti)
-console.log('JWT Payload:', decoded);
+// Use the auth middleware from the main auth file 
+import { isAuthenticated as mainIsAuthenticated } from '../../middleware/auth';
 
-// Add user data to request object
-req.user = decoded as { id: string; role: string }; 
+/**
+ * For consistent authentication handling across API routes
+ * Re-export the main middleware 
+ */
+export const isAuthenticated = mainIsAuthenticated; 

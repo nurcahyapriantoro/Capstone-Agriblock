@@ -20,17 +20,26 @@ import {
   createBenihSchema,
   purchaseCoinSchema,
 } from "../validation/transactionSchema"
+import { transactionRateLimiter } from "../../middleware/rateLimiter"
+import { transactionAmountSchema, fundTransferSchema, productTransactionSchema } from "../validation/transactionValidation"
+import { authenticateJWT } from "../../middleware/auth"
 
 const router = Router()
 
 /**
  * @swagger
- * /api/transactions/create:
+ * /transaction/create:
  *   post:
  *     summary: Create a new transaction
  *     tags: [Transactions]
  *     security:
  *       - BearerAuth: []
+ *     description: |
+ *       Create a new transaction with the following limits:
+ *       - Min amount: 1,000 IDR
+ *       - Max amount: 1,000,000,000 IDR (1 billion)
+ *       - Daily limit: 50,000,000 IDR for regular users
+ *       - Rate limited to 20 transactions per hour
  *     requestBody:
  *       required: true
  *       content:
@@ -65,12 +74,21 @@ const router = Router()
  *         description: Transaction created successfully
  *       400:
  *         description: Invalid transaction data
+ *       429:
+ *         description: Transaction limit reached
  */
-router.post("/create", validate(transactionSchema), catcher(createTransaction))
+router.post(
+  "/create", 
+  authenticateJWT,
+  transactionRateLimiter,
+  validate(transactionSchema), 
+  validate(transactionAmountSchema),
+  catcher(createTransaction)
+)
 
 /**
  * @swagger
- * /api/transactions/create-benih:
+ * /transaction/create-benih:
  *   post:
  *     summary: Create initial seed transaction
  *     tags: [Transactions]
@@ -102,7 +120,7 @@ router.post("/create-benih", validate(createBenihSchema), catcher(createBenih))
 
 /**
  * @swagger
- * /api/transactions/sign:
+ * /transaction/sign:
  *   post:
  *     summary: Sign a transaction
  *     tags: [Transactions]
@@ -143,7 +161,7 @@ router.post("/sign", validate(transactionSchema), catcher(signTransaction))
 
 /**
  * @swagger
- * /api/transactions/purchase-coin:
+ * /transaction/purchase-coin:
  *   post:
  *     summary: Purchase coins
  *     tags: [Transactions]
@@ -177,10 +195,18 @@ router.post(
 
 /**
  * @swagger
- * /api/transactions/transfer-coin:
+ * /transaction/transfer-coin:
  *   post:
  *     summary: Transfer coins between accounts
  *     tags: [Transactions]
+ *     security:
+ *       - BearerAuth: []
+ *     description: |
+ *       Transfer coins between accounts with the following limits:
+ *       - Min amount: 1,000 IDR
+ *       - Max amount: 1,000,000,000 IDR (1 billion)
+ *       - Daily limit: 50,000,000 IDR for regular users
+ *       - Rate limited to 20 transactions per hour
  *     requestBody:
  *       required: true
  *       content:
@@ -201,21 +227,30 @@ router.post(
  *               amount:
  *                 type: number
  *                 description: Amount to transfer
+ *               purpose:
+ *                 type: string
+ *                 enum: [PAYMENT, REFUND, INVESTMENT, GIFT, OTHER]
+ *                 description: Purpose of the transfer
  *     responses:
  *       201:
  *         description: Coins transferred successfully
  *       400:
  *         description: Transfer failed, insufficient balance
+ *       429:
+ *         description: Transaction limit reached
  */
 router.post(
   "/transfer-coin",
+  authenticateJWT,
+  transactionRateLimiter,
   validate(coinTransferSchema),
+  validate(fundTransferSchema),
   catcher(transferCoin)
 )
 
 /**
  * @swagger
- * /api/transactions/stake:
+ * /transaction/stake:
  *   post:
  *     summary: Stake coins
  *     tags: [Transactions]
@@ -245,7 +280,7 @@ router.post("/stake", validate(coinStakeSchema), catcher(stakeCoin))
 
 /**
  * @swagger
- * /api/transactions/pool:
+ * /transaction/pool:
  *   get:
  *     summary: Get transaction pool
  *     tags: [Transactions]
@@ -257,7 +292,7 @@ router.get("/pool", catcher(getTransactionPool))
 
 /**
  * @swagger
- * /api/transactions/{hash}:
+ * /transaction/{hash}:
  *   get:
  *     summary: Get transaction by hash
  *     tags: [Transactions]
@@ -278,7 +313,7 @@ router.get("/:hash", catcher(getTransaction))
 
 /**
  * @swagger
- * /api/transactions/{hash}/flow:
+ * /transaction/{hash}/flow:
  *   get:
  *     summary: Get transaction flow (chain of related transactions)
  *     tags: [Transactions]

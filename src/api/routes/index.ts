@@ -7,9 +7,10 @@ import UserRoute from "./UserRoute"
 import RoleRoute from "./RoleRoute"
 import ProductRoute from "./ProductRoute"
 import TransactionHistoryRoute from "./TransactionHistoryRoute"
-import ProductManagementRoute from "./ProductManagementRoute"
 import PaymentRoutes from "./PaymentRoutes"
-import DisputeRoute from "./DisputeRoute"
+import NotificationRoute from "./NotificationRoute"
+import StockRoute from "./StockRoute"
+import AuthRoute from "./AuthRoute"
 
 const router = express.Router()
 
@@ -27,8 +28,9 @@ router.use("/user", UserRoute)
 router.use("/role", RoleRoute)
 router.use("/product", ProductRoute)
 router.use("/history", TransactionHistoryRoute)
-router.use("/product-management", ProductManagementRoute)
 router.use("/payment", PaymentRoutes)
-router.use("/disputes", DisputeRoute)
+router.use("/notifications", NotificationRoute)
+router.use("/stock", StockRoute)
+router.use("/auth", AuthRoute)
 
 export default router

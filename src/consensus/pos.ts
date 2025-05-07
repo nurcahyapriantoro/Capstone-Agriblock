@@ -9,17 +9,39 @@ class ProofOfStake {
   }
 
   static async initialize() {
-    const stakers = await stakeDb
-      .values()
-      .all()
-      .then((data) =>
-        data.reduce((prev, cur) => {
-          const parsedData = JSON.parse(cur)
-          return { ...prev, [parsedData.publicKey]: parsedData.stake }
-        }, {})
-      )
-
-    return new ProofOfStake(stakers)
+    try {
+      const values = await stakeDb.values().all();
+      
+      const stakers = values.reduce((prev, cur) => {
+        // Check if cur is already an object or a string that needs parsing
+        let parsedData;
+        if (typeof cur === 'string') {
+          try {
+            parsedData = JSON.parse(cur);
+          } catch (error) {
+            console.error('Error parsing stake data:', error);
+            return prev; // Skip this entry if it can't be parsed
+          }
+        } else {
+          // It's already an object, use it directly
+          parsedData = cur;
+        }
+        
+        // Ensure the data has the expected structure
+        if (parsedData && parsedData.publicKey && parsedData.stake !== undefined) {
+          return { ...prev, [parsedData.publicKey]: parsedData.stake };
+        } else {
+          console.warn('Skipping invalid stake data:', parsedData);
+          return prev;
+        }
+      }, {});
+      
+      return new ProofOfStake(stakers);
+    } catch (error) {
+      console.error('Error initializing Proof of Stake:', error);
+      // Return an empty ProofOfStake instance instead of crashing
+      return new ProofOfStake({});
+    }
   }
 
   async update(publicKey: string, stake: number) {

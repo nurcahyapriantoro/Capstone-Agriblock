@@ -4,6 +4,12 @@ import { TransactionHistoryService } from "./TransactionHistory";
 import ProductService from "./ProductService";
 import RoleService from "./RoleService";
 import { updateProductStatus as utilsUpdateProductStatus } from "./updateProductStatus";
+import { injectable, inject } from 'tsyringe';
+import { ContractRegistry } from '../contracts/ContractRegistry';
+
+// Token definitions for injection
+export const PRODUCT_ID = Symbol('PRODUCT_ID');
+export const USER_ID = Symbol('USER_ID');
 
 interface ProductUpdateResult {
   success: boolean;
@@ -33,17 +39,23 @@ interface ProductValidationCriteria {
   // Can be extended with additional validation criteria
 }
 
-/**
- * Class for managing product status updates, recalls, and validations
- */
-class ProductManagement {
+// ID kontrak untuk pengelolaan produk
+const contractId = 'product-management-v1';
+
+@injectable()
+export default class ProductManagement {
+  private registry: ContractRegistry;
   private productId: string;
   private userId: string; // User initiating the action
   private userRole?: UserRole;
 
-  constructor(productId: string, userId: string) {
+  constructor(
+    @inject(PRODUCT_ID) productId: string, 
+    @inject(USER_ID) userId: string
+  ) {
     this.productId = productId;
     this.userId = userId;
+    this.registry = ContractRegistry.getInstance();
   }
 
   /**
@@ -64,6 +76,90 @@ class ProductManagement {
     } catch (error) {
       console.error("Error initializing ProductManagement:", error);
       return false;
+    }
+  }
+
+  /**
+   * Create a new product
+   */
+  async createProduct(
+    farmerId: string,
+    name: string,
+    productName: string,
+    description: string,
+    initialQuantity: number,
+    unit: string,
+    price: number,
+    productionDate: string,
+    expiryDate: string,
+    location: string,
+    metadata: object
+  ) {
+    try {
+      return await this.registry.executeContract(
+        contractId,
+        'createProduct',
+        { 
+          farmerId,
+          name,
+          productName,
+          description, 
+          initialQuantity, 
+          unit,
+          price, 
+          productionDate,
+          expiryDate,
+          location,
+          metadata 
+        },
+        farmerId // sender is the farmer ID
+      );
+    } catch (error) {
+      console.error('Error in ProductManagement.createProduct:', error);
+      return {
+        success: false,
+        message: `Error creating product: ${(error as Error).message}`
+      };
+    }
+  }
+
+  /**
+   * Get product by ID
+   */
+  async getProduct(productId: string) {
+    try {
+      return await this.registry.executeContract(
+        contractId,
+        'getProduct',
+        { productId },
+        this.userId
+      );
+    } catch (error) {
+      console.error('Error in ProductManagement.getProduct:', error);
+      return {
+        success: false,
+        message: `Error getting product: ${(error as Error).message}`
+      };
+    }
+  }
+
+  /**
+   * Get products by owner
+   */
+  async getProductsByOwner(ownerId: string) {
+    try {
+      return await this.registry.executeContract(
+        contractId,
+        'getProductsByOwner',
+        { ownerId },
+        this.userId
+      );
+    } catch (error) {
+      console.error('Error in ProductManagement.getProductsByOwner:', error);
+      return {
+        success: false,
+        message: `Error getting products: ${(error as Error).message}`
+      };
     }
   }
 
@@ -437,6 +533,4 @@ class ProductManagement {
       issues
     };
   }
-}
-
-export default ProductManagement; 
+} 

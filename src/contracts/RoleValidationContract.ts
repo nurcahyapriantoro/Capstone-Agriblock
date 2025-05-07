@@ -1,6 +1,6 @@
 import { SmartContract } from './ISmartContract';
 import { Level } from 'level';
-import { UserRole } from '../enum';
+import { UserRole, TransactionAction } from '../enum';
 
 /**
  * User data stored in the RoleValidation contract
@@ -21,6 +21,7 @@ interface ValidationResult {
   success: boolean;
   message?: string;
   role?: UserRole;
+  isValid?: boolean;
 }
 
 /**
@@ -29,7 +30,7 @@ interface ValidationResult {
  */
 export class RoleValidationContract extends SmartContract {
   // Admin roles that can manage other users
-  private static ADMIN_ROLES = [UserRole.ADMIN];
+  private static ADMIN_ROLES = [UserRole.FARMER];
   
   constructor(stateDB: Level<string, string>) {
     super(
@@ -50,7 +51,7 @@ export class RoleValidationContract extends SmartContract {
       if (!adminUser) {
         await this.writeState<UserData>('admin', {
           userId: 'admin',
-          role: UserRole.ADMIN,
+          role: UserRole.FARMER,
           metadata: { isSystemAdmin: true },
           registeredAt: Date.now(),
           lastUpdated: Date.now(),
@@ -89,6 +90,10 @@ export class RoleValidationContract extends SmartContract {
         return this.deactivateUser(params.userId, sender);
       case 'reactivateUser':
         return this.reactivateUser(params.userId, sender);
+      case 'validateTransaction':
+        return this.validateTransaction(params.fromUserId, params.toUserId, params.action);
+      case 'validateUserAction':
+        return this.validateUserAction(params.userId, params.action);
       default:
         throw new Error(`Unknown method: ${method}`);
     }
@@ -182,7 +187,7 @@ export class RoleValidationContract extends SmartContract {
     }
     
     // Only admins can register admin users
-    if (role === UserRole.ADMIN) {
+    if (role === UserRole.FARMER) {
       const registrarData = await this.readState<UserData>(registrar);
       if (!registrarData || !RoleValidationContract.ADMIN_ROLES.includes(registrarData.role)) {
         return {
@@ -412,4 +417,174 @@ export class RoleValidationContract extends SmartContract {
       role: userData.role
     };
   }
-} 
+
+  /**
+   * Validate if a user can perform a specific action
+   * @param userId User ID to validate
+   * @param action Transaction action to validate
+   */
+  private async validateUserAction(
+    userId: string,
+    action: TransactionAction
+  ): Promise<ValidationResult> {
+    const userData = await this.readState<UserData>(userId);
+    
+    if (!userData) {
+      return {
+        success: false,
+        isValid: false,
+        message: `User ${userId} not found`
+      };
+    }
+    
+    if (!userData.isActive) {
+      return {
+        success: false,
+        isValid: false,
+        message: `User ${userId} is not active`
+      };
+    }
+    
+    const isValid = this.isActionAllowedForRole(userData.role, action);
+    
+    return {
+      success: true,
+      isValid,
+      message: isValid 
+        ? `User is authorized to perform this action` 
+        : `User with role ${userData.role} is not authorized to perform ${action}`
+    };
+  }
+  
+  /**
+   * Validate transaction between two users based on their roles
+   * @param fromUserId Sender user ID
+   * @param toUserId Receiver user ID
+   * @param action Transaction action
+   */
+  private async validateTransaction(
+    fromUserId: string,
+    toUserId: string,
+    action: TransactionAction
+  ): Promise<ValidationResult> {
+    // Get both users' roles
+    const fromUserResult = await this.getUserRole(fromUserId);
+    const toUserResult = await this.getUserRole(toUserId);
+    
+    if (!fromUserResult.success) {
+      return {
+        success: false,
+        isValid: false,
+        message: `Sender user ${fromUserId} not found`
+      };
+    }
+    
+    if (!toUserResult.success) {
+      return {
+        success: false,
+        isValid: false,
+        message: `Receiver user ${toUserId} not found`
+      };
+    }
+    
+    // First check if the action is valid for the sender's role
+    const actionValidation = await this.validateUserAction(fromUserId, action);
+    if (!actionValidation.isValid) {
+      return actionValidation;
+    }
+    
+    // Now check if the transaction parties are valid for this action
+    const fromRole = fromUserResult.role as UserRole;
+    const toRole = toUserResult.role as UserRole;
+    
+    // Check transaction validity based on role relationships
+    let isValid = false;
+    let message = "";
+    
+    if (action === TransactionAction.SELL_PRODUCT) {
+      // Validate seller to buyer relationship
+      isValid = this.isValidSellerBuyerRelationship(fromRole, toRole);
+      message = isValid 
+        ? `Transaction is valid based on user roles` 
+        : `Users with roles ${fromRole} and ${toRole} cannot perform ${action} transaction`;
+    } else if (action === TransactionAction.BUY_PRODUCT) {
+      // For buy, the relationship is reversed
+      isValid = this.isValidSellerBuyerRelationship(toRole, fromRole);
+      message = isValid 
+        ? `Transaction is valid based on user roles` 
+        : `Users with roles ${fromRole} and ${toRole} cannot perform ${action} transaction`;
+    } else {
+      // For other actions like VIEW_HISTORY, we already validated the sender can do it
+      isValid = true;
+      message = `Transaction is valid based on user roles`;
+    }
+    
+    return {
+      success: true,
+      isValid,
+      message
+    };
+  }
+  
+  /**
+   * Check if an action is allowed for a specific role
+   */
+  private isActionAllowedForRole(role: UserRole, action: TransactionAction): boolean {
+    switch (role) {
+      case UserRole.FARMER:
+        // Farmers dapat melakukan apa saja (pengganti admin)
+        return true;
+        
+      case UserRole.COLLECTOR:
+        return [
+          TransactionAction.BUY_PRODUCT,
+          TransactionAction.SELL_PRODUCT,
+          TransactionAction.VIEW_HISTORY
+        ].includes(action);
+        
+      case UserRole.TRADER:
+        return [
+          TransactionAction.BUY_PRODUCT,
+          TransactionAction.SELL_PRODUCT,
+          TransactionAction.VIEW_HISTORY
+        ].includes(action);
+        
+      case UserRole.RETAILER:
+        return [
+          TransactionAction.BUY_PRODUCT,
+          TransactionAction.VIEW_HISTORY
+        ].includes(action);
+        
+      case UserRole.CONSUMER:
+        return [
+          TransactionAction.VIEW_HISTORY
+        ].includes(action);
+        
+      default:
+        return false;
+    }
+  }
+  
+  /**
+   * Check if seller and buyer roles can transact
+   */
+  private isValidSellerBuyerRelationship(sellerRole: UserRole, buyerRole: UserRole): boolean {
+    // Valid supply chain relationships
+    if (sellerRole === UserRole.FARMER && buyerRole === UserRole.COLLECTOR) {
+      return true;
+    }
+    if (sellerRole === UserRole.COLLECTOR && buyerRole === UserRole.TRADER) {
+      return true;
+    }
+    if (sellerRole === UserRole.TRADER && buyerRole === UserRole.RETAILER) {
+      return true;
+    }
+    
+    // Farmers (sebagai pengganti admin) dapat bertransaksi dengan siapa saja
+    if (sellerRole === UserRole.FARMER || buyerRole === UserRole.FARMER) {
+      return true;
+    }
+    
+    return false;
+  }
+}

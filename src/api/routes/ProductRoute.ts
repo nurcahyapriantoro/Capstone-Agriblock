@@ -1,167 +1,100 @@
-import express from "express";
+import express, { Request, Response } from "express";
 import { 
   createProduct, 
   getProduct, 
-  getProductsByOwner, 
-  transferOwnership 
+  getProductsByOwner 
 } from "../controller/ProductController";
+import ProductImageController from "../controller/ProductImageController";
+import ProductTransferController from "../controller/ProductTransferController";
+import ProductManagementController from "../controller/ProductManagementController";
+import { container } from 'tsyringe';
+import { productCreationRateLimiter } from "../../middleware/rateLimiter";
+import { authenticateJWT } from "../../middleware/auth";
+import { uploadImage, handleUploadErrors, uploadToImageKit } from "../../middleware/uploadLimiter";
+import { UserRole } from '../../enum';
+import { trackProductView, trackProductTransaction } from "../../middleware/productAnalytics";
 
 const router = express.Router();
+const productManagementController = container.resolve(ProductManagementController);
 
-/**
- * @swagger
- * /api/products:
- *   post:
- *     summary: Create a new product
- *     tags: [Products]
- *     security:
- *       - BearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - name
- *               - ownerId
- *               - category
- *             properties:
- *               name:
- *                 type: string
- *                 description: Product name
- *               ownerId:
- *                 type: string
- *                 description: ID of the product owner (usually a farmer ID)
- *               category:
- *                 type: string
- *                 description: Product category
- *               initialQuantity:
- *                 type: number
- *                 description: Initial product quantity
- *               unit:
- *                 type: string
- *                 description: Unit of measurement (kg, ton, etc.)
- *               price:
- *                 type: number
- *                 description: Product price
- *               locationGrown:
- *                 type: string
- *                 description: Location where the product was grown
- *               harvestDate:
- *                 type: string
- *                 format: date
- *                 description: Date of harvest
- *               certifications:
- *                 type: array
- *                 items:
- *                   type: string
- *                 description: List of certifications
- *     responses:
- *       201:
- *         description: Product created successfully
- *       400:
- *         description: Invalid input data
- *       401:
- *         description: Unauthorized
- */
-router.post("/", createProduct);
+// Add body parser middleware
+router.use(express.json());
 
-/**
- * @swagger
- * /api/products/{productId}:
- *   get:
- *     summary: Get product by ID
- *     tags: [Products]
- *     parameters:
- *       - in: path
- *         name: productId
- *         schema:
- *           type: string
- *         required: true
- *         description: ID of the product
- *     responses:
- *       200:
- *         description: Product details
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 id:
- *                   type: string
- *                 name:
- *                   type: string
- *                 ownerId:
- *                   type: string
- *                 category:
- *                   type: string
- *                 createdAt:
- *                   type: number
- *       404:
- *         description: Product not found
- */
-router.get("/:productId", getProduct);
+// Helper function to check if user is a farmer
+const isFarmer = (req: Request): boolean => {
+  return req.user?.role === UserRole.FARMER;
+};
 
-/**
- * @swagger
- * /api/products/owner/{ownerId}:
- *   get:
- *     summary: Get all products owned by a specific user
- *     tags: [Products]
- *     parameters:
- *       - in: path
- *         name: ownerId
- *         schema:
- *           type: string
- *         required: true
- *         description: ID of the owner
- *     responses:
- *       200:
- *         description: List of products
- *       404:
- *         description: No products found or owner doesn't exist
- */
+// Middleware to ensure only farmers can create products
+const ensureFarmerAccess = (req: Request, res: Response, next: Function) => {
+  if (!isFarmer(req)) {
+    return res.status(403).json({
+      success: false,
+      message: "Access denied. Only farmers can create products."
+    });
+  }
+  next();
+};
+
+// Create a new product
+router.post("/", authenticateJWT, ensureFarmerAccess, productCreationRateLimiter, createProduct);
+
+// Upload product images to ImageKit
+router.post(
+  "/upload-image/:productId", 
+  authenticateJWT, 
+  ProductImageController.validateProductOwnership,
+  uploadImage.array('images', 5),
+  handleUploadErrors,
+  uploadToImageKit,
+  ProductImageController.handleSuccessfulUpload
+);
+
+// Get ImageKit authentication parameters
+router.get("/imagekit/auth", authenticateJWT, ProductImageController.getImageKitAuth);
+
+// Delete an image from ImageKit
+router.delete("/images/:fileId", authenticateJWT, ProductImageController.deleteImage);
+
+// Get the latest status of a product
+router.get("/status/:productId", productManagementController.getProductStatus);
+
+// Get product by ID
+router.get("/:productId", trackProductView, getProduct);
+
+// Get all images for a product from ImageKit
+router.get("/:productId/images", ProductImageController.getProductImages);
+
+// Get all products owned by a specific user
 router.get("/owner/:ownerId", getProductsByOwner);
 
-/**
- * @swagger
- * /api/products/transfer:
- *   post:
- *     summary: Transfer product ownership
- *     tags: [Products]
- *     security:
- *       - BearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - productId
- *               - fromUserId
- *               - toUserId
- *             properties:
- *               productId:
- *                 type: string
- *                 description: ID of the product to transfer
- *               fromUserId:
- *                 type: string
- *                 description: Current owner ID
- *               toUserId:
- *                 type: string
- *                 description: New owner ID
- *     responses:
- *       200:
- *         description: Ownership transferred successfully
- *       400:
- *         description: Invalid transfer request
- *       401:
- *         description: Unauthorized
- *       403:
- *         description: Forbidden - not the current owner
- */
-router.post("/transfer", transferOwnership);
+// Transfer product ownership and automatically update status
+// Produk akan otomatis di-receive saat transfer antar role
+router.post("/transfer", authenticateJWT, trackProductTransaction, ProductTransferController.transferProduct);
 
-export default router; 
+// === Product Management Endpoints ===
+
+// Mark product as sold and update status
+router.post("/sell", authenticateJWT, productManagementController.sellProduct);
+
+// Recall a product and update status
+router.post("/recall", authenticateJWT, productManagementController.recallProduct);
+
+// Verify product quality and update status
+router.post("/verify", authenticateJWT, productManagementController.verifyProduct);
+
+// Get all recalled products
+router.get("/recalled", productManagementController.getRecalledProducts);
+
+// === Product Verification Consensus Endpoints ===
+
+// Get verification status and consensus information for a product
+router.get("/verifications/:productId", productManagementController.getProductVerifications);
+
+// Check if consensus has been reached and update product status if needed
+router.post("/check-consensus/:productId", authenticateJWT, productManagementController.checkVerificationConsensus);
+
+// Get consensus status for a product
+router.get("/consensus/:productId", productManagementController.getProductVerifications);
+
+export default router;

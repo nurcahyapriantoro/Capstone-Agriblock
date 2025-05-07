@@ -1,8 +1,8 @@
+import 'reflect-metadata';
 import { Request, Response } from 'express';
 import { container, injectable, inject } from 'tsyringe';
 import StockManagement from '../../core/StockManagement';
 import { StockChangeReason, UserRole } from '../../enum';
-import { isAuthenticated } from '../../middleware/auth';
 import RoleService from '../../core/RoleService';
 
 // Register StockManagement service in the container

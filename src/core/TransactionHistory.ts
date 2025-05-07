@@ -385,7 +385,7 @@ class TransactionHistoryService {
       fromUserId,
       toUserId,
       TransactionActionType.PAYMENT,
-      ProductStatus.ACTIVE, // Payment doesn't change product status directly
+      ProductStatus.PAID, // Changed from ACTIVE to PAID
       {
         amount,
         paymentType,
@@ -837,4 +837,4 @@ class TransactionHistoryService {
   }
 }
 
-export { TransactionHistory, TransactionHistoryService, TransactionRecord }; 
+export { TransactionHistory, TransactionHistoryService, TransactionRecord };

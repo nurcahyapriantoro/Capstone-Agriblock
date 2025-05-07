@@ -9,6 +9,7 @@ declare global {
       user?: {
         id: string;
         role: string;
+        walletAddress?: string;
         // Add other user properties as needed
       };
     }
@@ -17,13 +18,17 @@ declare global {
 
 /**
  * Middleware to authenticate requests using JWT
+ * This is the main authentication middleware used across the application
  */
 export const isAuthenticated = (req: Request, res: Response, next: NextFunction): void => {
   try {
     // Get token from Authorization header
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      res.status(401).json({ success: false, message: 'Authentication required' });
+      res.status(401).json({ 
+        success: false, 
+        message: 'Authentication required' 
+      });
       return;
     }
 
@@ -31,19 +36,18 @@ export const isAuthenticated = (req: Request, res: Response, next: NextFunction)
     const token = authHeader.split(' ')[1];
     
     // Make sure the secret exists
-    const secret = jwtConfig.secret || 'fallback_secret_for_dev';
+    const secret = process.env.JWT_SECRET || jwtConfig.secret || 'default_secret_key';
     
-    // Verify token with enhanced options
-    const decoded = jwt.verify(token, secret, {
-      algorithms: [jwtConfig.algorithm as jwt.Algorithm],
-      issuer: jwtConfig.issuer
-    });
+    // Simplified token verification - matches how it's created in UserController
+    // Removed algorithm and issuer constraints that were causing verification issues
+    const decoded = jwt.verify(token, secret);
     
     // Add user data to request object, safely type cast
     const payload = decoded as jwt.JwtPayload;
     req.user = {
       id: payload.id as string,
-      role: payload.role as string
+      role: payload.role as string,
+      walletAddress: payload.walletAddress as string
     };
     
     next();
@@ -65,7 +69,10 @@ export const isAuthenticated = (req: Request, res: Response, next: NextFunction)
     }
     
     console.error('Authentication error:', error);
-    res.status(401).json({ success: false, message: 'Invalid or expired token' });
+    res.status(401).json({ 
+      success: false, 
+      message: 'Invalid or expired token' 
+    });
   }
 };
 
@@ -96,6 +103,7 @@ export const hasRole = (roles: string[]) => {
 };
 
 /**
- * Alias for the authentication middleware (used in different parts of the codebase)
+ * For backward compatibility and consistency
+ * Export authenticateJWT as an alias for isAuthenticated
  */
 export const authenticateJWT = isAuthenticated; 

@@ -1,4 +1,5 @@
 import { Level } from "level";
+import { ContractRegistry } from "./ContractRegistry";
 
 /**
  * Base interface for all smart contracts
@@ -48,6 +49,16 @@ export interface ISmartContract {
    * Get the contract's state JSON schema
    */
   getStateSchema(): Record<string, any>;
+}
+
+/**
+ * Activity log level
+ */
+export enum LogLevel {
+  INFO = 'info',
+  WARNING = 'warning',
+  ERROR = 'error',
+  DEBUG = 'debug'
 }
 
 /**
@@ -205,8 +216,68 @@ export abstract class SmartContract implements ISmartContract {
       timestamp: Date.now(),
     };
     
-    // In a production blockchain, this would be stored in an events database
-    // or propagated to listeners. For now we'll just log it.
+    // Log the event
     console.log('EVENT EMITTED:', JSON.stringify(event, null, 2));
+    
+    // Store event in state database for history
+    const eventId = `event:${this.contractId}:${eventName}:${Date.now()}`;
+    await this.stateDB.put(eventId, JSON.stringify(event));
+    
+    // Notify subscribers through ContractRegistry
+    const registry = ContractRegistry.getInstance();
+    registry.notifyEventSubscribers(this.contractId, eventName, eventData);
+  }
+
+  /**
+   * Log activity in the contract with detailed information
+   * @param action The action being performed
+   * @param details Additional details about the action
+   * @param level Log level (info, warning, error, debug)
+   */
+  protected async logActivity(
+    action: string,
+    details: Record<string, any>,
+    level: LogLevel = LogLevel.INFO
+  ): Promise<void> {
+    const logEntry = {
+      contractId: this.contractId,
+      contractName: this.name,
+      timestamp: Date.now(),
+      action,
+      details,
+      level
+    };
+    
+    // Store log in database
+    const logId = `log:${this.contractId}:${Date.now()}`;
+    await this.stateDB.put(logId, JSON.stringify(logEntry));
+    
+    // Format console output based on level
+    let logPrefix = '';
+    switch (level) {
+      case LogLevel.ERROR:
+        logPrefix = '\x1b[31mERROR\x1b[0m';
+        break;
+      case LogLevel.WARNING:
+        logPrefix = '\x1b[33mWARN\x1b[0m';
+        break;
+      case LogLevel.DEBUG:
+        logPrefix = '\x1b[36mDEBUG\x1b[0m';
+        break;
+      default:
+        logPrefix = '\x1b[32mINFO\x1b[0m';
+    }
+    
+    console.log(
+      `${logPrefix} [${this.name}] ${action}: ${JSON.stringify(details)}`
+    );
+    
+    // For errors and warnings, also emit events
+    if (level === LogLevel.ERROR || level === LogLevel.WARNING) {
+      await this.emitEvent(`Log${level.charAt(0).toUpperCase() + level.slice(1)}`, {
+        action,
+        ...details
+      });
+    }
   }
 } 

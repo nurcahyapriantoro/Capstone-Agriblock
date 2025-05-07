@@ -664,26 +664,15 @@ export class PaymentManagementContract extends SmartContract {
     }
     
     // Verify user is authorized to refund the escrow
-    // Either sender or receiver can initiate a refund, or an admin
+    // Either sender or receiver can initiate a refund
     const isSender = escrow.fromUserId === userId;
     const isReceiver = escrow.toUserId === userId;
     
     if (!isSender && !isReceiver) {
-      // Check if user is admin (we would normally check this against RoleValidation)
-      const adminResult = await this.callContract(
-        this.roleValidationContractId,
-        'query',
-        'validateAccess',
-        { userId, requiredRole: UserRole.ADMIN },
-        null
-      );
-      
-      if (!adminResult.success) {
-        return {
-          success: false,
-          message: "Only the escrow sender, receiver, or an admin can refund the escrow."
-        };
-      }
+      return {
+        success: false,
+        message: "Only the escrow sender or receiver can refund the escrow."
+      };
     }
     
     // Get the associated payment
@@ -782,23 +771,12 @@ export class PaymentManagementContract extends SmartContract {
     }
     
     // Verify user is authorized to issue the refund
-    // Usually only the receiver (who got the money) can issue a refund
+    // Hanya penerima pembayaran yang dapat mengeluarkan pengembalian dana
     if (payment.toUserId !== userId) {
-      // Check if user is admin (we would normally check this against RoleValidation)
-      const adminResult = await this.callContract(
-        this.roleValidationContractId,
-        'query',
-        'validateAccess',
-        { userId, requiredRole: UserRole.ADMIN },
-        null
-      );
-      
-      if (!adminResult.success) {
-        return {
-          success: false,
-          message: "Only the payment receiver or an admin can issue a refund."
-        };
-      }
+      return {
+        success: false,
+        message: "Only the payment receiver can issue a refund."
+      };
     }
     
     // Update payment status
@@ -1055,4 +1033,4 @@ export class PaymentManagementContract extends SmartContract {
   private generateEscrowId(): string {
     return `escr-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
   }
-} 
+}
