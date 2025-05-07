@@ -66,7 +66,7 @@ const createProduct = async (req: Request, res: Response) => {
       metadata: productMetadata
     });
 
-    // 1. Simpan produk di database konvensional
+    // Simpan produk di database dan daftarkan ke blockchain
     const result = await ProductService.createProduct(
       farmerId, 
       {
@@ -75,7 +75,7 @@ const createProduct = async (req: Request, res: Response) => {
         quantity: productQuantity,
         price,
         metadata: productMetadata,
-        status: ProductStatus.CREATED  // Mengubah dari ACTIVE menjadi CREATED
+        status: ProductStatus.CREATED
       },
       {
         productName: productName,
@@ -94,55 +94,15 @@ const createProduct = async (req: Request, res: Response) => {
       });
     }
 
-    // 2. Daftarkan produk ke blockchain
-    const registry = ContractRegistry.getInstance();
-    let blockchainResult;
-    let productRegisteredInBlockchain = false;
-
-    try {
-      // Validasi data sebelum mengirim ke blockchain
-      // Pastikan name dan productName memenuhi persyaratan minimum
-      const validName = name && name.trim().length >= 3 ? name : `Product ${result.productId?.substring(0, 8)}`;
-      const validProductName = productName && productName.trim().length >= 2 ? productName : `Item ${result.productId?.substring(0, 8)}`;
-      const validQuantity = productQuantity > 0 ? productQuantity : 1;
-      
-      blockchainResult = await registry.executeContract(
-        contractId,
-        'createProduct',
-        { 
-          farmerId,
-          name: validName,
-          productName: validProductName,
-          description: description || "No description available",
-          initialQuantity: validQuantity,
-          unit: unit || "unit",
-          price: price || 0,
-          productionDate: productionDate || new Date().toISOString(),
-          expiryDate: expiryDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
-          location: location || "Unknown",
-          metadata: productMetadata || {}
-        },
-        farmerId // sender is the farmer ID
-      );
-      
-      productRegisteredInBlockchain = blockchainResult.success;
-      console.log("Blockchain registration result:", JSON.stringify(blockchainResult));
-    } catch (blockchainError) {
-      console.error("Error registering product in blockchain:", blockchainError);
-      // Tidak mengembalikan error ke pengguna karena produk sudah berhasil disimpan di database
-    }
-
     return res.status(201).json({
       success: true,
       data: {
         productId: result.productId,
         transactionId: result.transactionId,
-        blockchainRegistered: productRegisteredInBlockchain,
-        blockchainTransactionId: blockchainResult?.transactionId
+        blockchainRegistered: result.blockchainRegistered,
+        blockchainTransactionId: result.blockchainTransactionId
       },
-      message: productRegisteredInBlockchain ? 
-        "Product created successfully and registered in blockchain" :
-        "Product created successfully but failed to register in blockchain. It will be synchronized later."
+      message: result.message
     });
   } catch (error) {
     console.error("Error in createProduct:", error);

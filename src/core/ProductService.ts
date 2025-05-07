@@ -4,6 +4,10 @@ import RoleService from "./RoleService";
 import { TransactionHistoryService } from "./TransactionHistory";
 import { txhashDB } from "../helper/level.db.client";
 import { ProductStatus } from "../enum";
+import { ContractRegistry } from "../contracts/ContractRegistry";
+
+// ID kontrak untuk pengelolaan produk
+const contractId = 'product-management-v1';
 
 interface ProductData {
   id: string;
@@ -150,7 +154,7 @@ class ProductService {
   }
   
   /**
-   * Create a new product with the farmer as the initial owner
+   * Create a new product with the farmer as the initial owner and register it in blockchain
    * @param farmerId ID of the farmer creating the product
    * @param productData Data produk (name, description, quantity, price, metadata, status)
    * @param details Informasi tambahan yang akan direkam dalam transaksi
@@ -160,7 +164,7 @@ class ProductService {
     farmerId: string, 
     productData: Omit<ProductData, 'id' | 'ownerId' | 'createdAt' | 'updatedAt'>,
     details?: Record<string, any>
-  ): Promise<{ success: boolean; productId?: string; message?: string; transactionId?: string }> {
+  ): Promise<{ success: boolean; productId?: string; message?: string; transactionId?: string; blockchainRegistered?: boolean; blockchainTransactionId?: string }> {
     try {
       // Verify that the creator is a farmer
       const farmerRole = await RoleService.getUserRole(farmerId);
@@ -194,7 +198,7 @@ class ProductService {
         }
       }
       
-      // Simpan produk di database
+      // Simpan produk di database lokal
       await txhashDB.put(`product:${productId}`, JSON.stringify(newProduct));
       
       // Record the product creation in transaction history
@@ -212,11 +216,75 @@ class ProductService {
         productDetails
       );
       
+      // Langsung daftarkan ke blockchain
+      let blockchainResult;
+      let blockchainRegistered = false;
+      
+      try {
+        const registry = ContractRegistry.getInstance();
+        
+        // Validasi data sebelum mengirim ke blockchain
+        const validName = newProduct.name && newProduct.name.trim().length >= 3 
+          ? newProduct.name 
+          : `Product ${productId.substring(0, 8)}`;
+          
+        const validProductName = details?.productName && details.productName.toString().trim().length >= 2 
+          ? details.productName 
+          : validName;
+          
+        const validQuantity = newProduct.quantity && newProduct.quantity > 0 
+          ? newProduct.quantity 
+          : 1;
+        
+        // Daftarkan produk ke blockchain
+        blockchainResult = await registry.executeContract(
+          contractId,
+          'createProduct',
+          { 
+            farmerId,
+            name: validName,
+            productName: validProductName,
+            description: newProduct.description || "No description available",
+            initialQuantity: validQuantity,
+            unit: newProduct.metadata?.unit || details?.unit || "unit",
+            price: newProduct.price || 0,
+            productionDate: newProduct.metadata?.productionDate || details?.productionDate || new Date().toISOString(),
+            expiryDate: newProduct.metadata?.expiryDate || details?.expiryDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+            location: newProduct.metadata?.location || details?.location || "Unknown",
+            metadata: newProduct.metadata || {}
+          },
+          farmerId
+        );
+        
+        blockchainRegistered = blockchainResult.success;
+        
+        console.log(`Product ${productId} ${blockchainRegistered ? 'successfully' : 'failed to be'} registered in blockchain`);
+        
+        // Update produk di database dengan informasi blockchain registration
+        if (blockchainRegistered) {
+          newProduct.metadata = {
+            ...newProduct.metadata,
+            blockchainRegistered: true,
+            blockchainTransactionId: blockchainResult.transactionId,
+            blockchainRegisteredAt: Date.now()
+          };
+          
+          await txhashDB.put(`product:${productId}`, JSON.stringify(newProduct));
+        }
+      } catch (blockchainError) {
+        console.error(`Failed to register product ${productId} in blockchain:`, blockchainError);
+        blockchainRegistered = false;
+      }
+      
       return {
         success: true,
         productId,
-        message: "Product created successfully.",
-        transactionId: historyResult.transactionId
+        message: blockchainRegistered 
+          ? "Product created successfully and registered in blockchain" 
+          : "Product created successfully but failed to register in blockchain. It will be synchronized later.",
+        transactionId: historyResult.transactionId,
+        blockchainRegistered,
+        blockchainTransactionId: blockchainResult?.transactionId
       };
     } catch (error) {
       console.error("Error creating product:", error);
